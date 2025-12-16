@@ -1,0 +1,90 @@
+# Git Attributes Configuration
+
+# Default behavior
+* text=auto
+
+# Source code
+*.py text eol=lf
+*.java text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.sql text eol=lf
+*.rego text eol=lf
+
+# Configuration files
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Makefiles (must use tabs)
+Makefile text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Docker
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# Gradle
+*.gradle text eol=lf
+gradlew text eol=lf
+gradlew.bat text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.jar binary
+*.whl binary
+*.pyc binary
+*.class binary
+
+# Model files
+*.pt binary
+*.pth binary
+*.onnx binary
+*.pkl binary
+*.joblib binary
+*.h5 binary
+*.pb binary
+
+# Font files
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Certificates (treat as binary to prevent corruption)
+*.pem binary
+*.crt binary
+*.key binary
+*.p12 binary
+*.pfx binary
+
+# Lock files (exact content matters)
+package-lock.json -diff
+yarn.lock -diff
+poetry.lock -diff
+
+# Generated files
+*.generated.* linguist-generated=true
