@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: api-facade
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/hafnium}
+
+server:
+  port: ${SERVER_PORT:8087}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+
+logging:
+  level:
+    dev.hafnium: DEBUG
+
+hafnium:
+  services:
+    identity: ${IDENTITY_SERVICE_URL:http://localhost:8080}
+    screening: ${SCREENING_SERVICE_URL:http://localhost:8081}
+    monitoring: ${MONITORING_SERVICE_URL:http://localhost:8082}
+    case: ${CASE_SERVICE_URL:http://localhost:8083}
+    vault: ${VAULT_SERVICE_URL:http://localhost:8084}
+    risk-engine: ${RISK_ENGINE_SERVICE_URL:http://localhost:8085}
+    signals: ${SIGNALS_SERVICE_URL:http://localhost:8086}

@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: monitoring-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:hafnium}
+    username: ${DB_USER:hafnium}
+    password: ${DB_PASSWORD:hafnium_dev}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: monitoring
+
+  flyway:
+    enabled: true
+    schemas: monitoring
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: monitoring-service
+      auto-offset-reset: earliest
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/hafnium}
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+
+logging:
+  level:
+    dev.hafnium: DEBUG
+
+hafnium:
+  monitoring:
+    alert-threshold-high: 0.8
+    alert-threshold-critical: 0.95
+    velocity-window-hours: 24

@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: vault-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:hafnium}
+    username: ${DB_USER:hafnium}
+    password: ${DB_PASSWORD:hafnium_dev}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: vault
+
+  flyway:
+    enabled: true
+    schemas: vault
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/hafnium}
+
+  cloud:
+    vault:
+      enabled: ${VAULT_ENABLED:false}
+      uri: ${VAULT_URI:http://localhost:8200}
+      token: ${VAULT_TOKEN:root}
+      kv:
+        enabled: true
+        backend: secret
+
+server:
+  port: ${SERVER_PORT:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+
+logging:
+  level:
+    dev.hafnium: DEBUG
+
+hafnium:
+  vault:
+    encryption-key: ${VAULT_ENCRYPTION_KEY:0123456789abcdef0123456789abcdef}
+    hmac-key: ${VAULT_HMAC_KEY:fedcba9876543210fedcba9876543210}

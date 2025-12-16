@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: case-service
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:hafnium}
+    username: ${DB_USER:hafnium}
+    password: ${DB_PASSWORD:hafnium_dev}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: cases
+
+  flyway:
+    enabled: true
+    schemas: cases
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/hafnium}
+
+server:
+  port: ${SERVER_PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+
+logging:
+  level:
+    dev.hafnium: DEBUG
+
+hafnium:
+  case:
+    sla-days:
+      low: 30
+      medium: 14
+      high: 7
+      critical: 3
+  minio:
+    url: ${MINIO_URL:http://localhost:9000}
+    bucket: hafnium-evidence
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
