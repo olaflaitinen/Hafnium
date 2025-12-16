@@ -1,0 +1,43 @@
+# Authors
+
+This file lists the primary authors and significant contributors to the Hafnium project.
+
+## Original Authors
+
+- **Hafnium Platform Team** - Initial architecture and implementation
+
+## Contributors
+
+Contributors are recognized for their valuable contributions to the project. For a complete list of contributors, please see the GitHub contributors page.
+
+---
+
+## Contribution Recognition
+
+This project follows the [All Contributors](https://allcontributors.org/) specification. Contributions of any kind are welcome and will be recognized.
+
+Types of contributions include:
+- Code
+- Documentation
+- Design
+- Infrastructure
+- Testing
+- Security
+- Translation
+- Research
+
+---
+
+## Becoming a Contributor
+
+To become a listed contributor:
+
+1. Make a meaningful contribution to the project
+2. Have your contribution accepted via pull request
+3. Your name will be added to this file or the GitHub contributors page
+
+For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+*This document is maintained by the Hafnium Platform Team.*
