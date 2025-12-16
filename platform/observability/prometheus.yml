@@ -1,0 +1,31 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'hafnium-backend'
+    metrics_path: '/actuator/prometheus'
+    scheme: http
+    static_configs:
+      - targets: 
+        - 'identity-service:8080'
+        - 'screening-service:8081'
+        - 'monitoring-service:8082'
+        - 'case-service:8083'
+        - 'vault-service:8084'
+        - 'risk-engine:8085'
+        - 'signals-service:8086'
+        - 'api-facade:8087'
+
+  - job_name: 'stream-processor'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['stream-processor:8090']
+
+  - job_name: 'ai-inference'
+    static_configs:
+      - targets: ['ai-inference:3000']

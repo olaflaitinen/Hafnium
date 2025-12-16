@@ -1,73 +1,28 @@
-# Hafnium Code of Conduct
+﻿# Code of Conduct
 
-## Our Commitment
+## Pledge
 
-We are committed to providing a welcoming and inclusive environment for all contributors and participants. This Code of Conduct outlines our expectations for behavior within the Hafnium project community.
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
-## Our Standards
+## Standards
 
-### Expected Behavior
+Examples of behavior that contributes to a positive environment for our community include:
 
-Participants in this project are expected to:
+-   Demonstrating empathy and kindness toward others
+-   Being respectful of differing opinions, viewpoints, and experiences
+-   Giving and gracefully accepting constructive feedback
+-   Accepting responsibility and apologizing to those affected by our mistakes
+-   Focusing on what is best not just for us as individuals, but for the overall community
 
-- Use welcoming and inclusive language
-- Respect differing viewpoints and experiences
-- Accept constructive criticism gracefully
-- Focus on what is best for the community and the project
-- Show empathy towards other community members
-- Maintain professional discourse in all interactions
+Examples of unacceptable behavior include:
 
-### Unacceptable Behavior
-
-The following behaviors are considered unacceptable:
-
-- Harassment, intimidation, or discrimination in any form
-- Offensive comments related to personal characteristics
-- Unwelcome sexual attention or advances
-- Trolling, insulting remarks, or personal attacks
-- Public or private harassment
-- Publishing private information without consent
-- Other conduct that could reasonably be considered inappropriate in a professional setting
-
-## Scope
-
-This Code of Conduct applies to all project spaces, including:
-
-- Repository discussions and issues
-- Pull request reviews
-- Project documentation
-- Official project communication channels
-- Public representation of the project
+-   The use of sexualized language or imagery, and sexual attention or advances of any kind
+-   Trolling, insulting or derogatory comments, and personal or political attacks
+-   Public or private harassment
+-   Publishing others' private information, such as a physical or email address, without their explicit permission
+-   Other conduct which could reasonably be considered inappropriate in a professional setting
 
 ## Enforcement
 
-### Reporting
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team at conduct@hafnium.dev. All complaints will be reviewed and investigated promptly and fairly.
 
-Instances of unacceptable behavior may be reported to the project maintainers. All reports will be reviewed and investigated promptly and fairly.
-
-Reports should include:
-
-- Description of the incident
-- Date and time of occurrence
-- Any relevant context or evidence
-- Preferred contact method for follow-up
-
-### Confidentiality
-
-All reports will be handled with discretion. The privacy and security of the reporter will be protected to the extent possible.
-
-### Consequences
-
-Project maintainers will take appropriate action in response to violations, which may include:
-
-1. **Warning**: Private or public written warning
-2. **Temporary Ban**: Temporary restriction from project spaces
-3. **Permanent Ban**: Permanent removal from project participation
-
-## Attribution
-
-This Code of Conduct is adapted from the Contributor Covenant, version 2.1, available at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
-
----
-
-Last Updated: 2025-12-16

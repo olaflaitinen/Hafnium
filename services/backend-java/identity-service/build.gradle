@@ -12,6 +12,10 @@ dependencies {
     implementation project(':common:common-web')
     implementation project(':common:common-authz')
 
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
     // Database
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     runtimeOnly 'org.postgresql:postgresql'

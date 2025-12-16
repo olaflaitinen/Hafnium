@@ -1,0 +1,226 @@
+# Hafnium Development Environment
+
+version: "3.9"
+
+services:
+  # ============================================================================
+  # Authentication and Authorization
+  # ============================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: hafnium-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: hafnium
+      KC_DB_PASSWORD: hafnium_dev
+    command: start-dev
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hafnium-network
+
+  opa:
+    image: openpolicyagent/opa:0.60.0
+    container_name: hafnium-opa
+    command: run --server --addr :8181 /policies
+    volumes:
+      - ../platform/policies:/policies:ro
+    ports:
+      - "8181:8181"
+    networks:
+      - hafnium-network
+
+  # ============================================================================
+  # Data Stores
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: hafnium-postgres
+    environment:
+      POSTGRES_USER: hafnium
+      POSTGRES_PASSWORD: hafnium_dev
+      POSTGRES_DB: hafnium
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U hafnium" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hafnium-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: hafnium-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - hafnium-network
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-01T16-36-33Z
+    container_name: hafnium-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - hafnium-network
+
+  # ============================================================================
+  # Messaging
+  # ============================================================================
+  redpanda:
+    image: redpandadata/redpanda:v23.3.4
+    container_name: hafnium-redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8083,external://0.0.0.0:18083
+    ports:
+      - "19092:19092"
+      - "18082:18082"
+      - "18083:18083"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    networks:
+      - hafnium-network
+
+  # ============================================================================
+  # Observability
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: hafnium-prometheus
+    volumes:
+      - ../platform/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    networks:
+      - hafnium-network
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: hafnium-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../platform/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - hafnium-network
+
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: hafnium-loki
+    volumes:
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - hafnium-network
+
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: hafnium-tempo
+    command: -config.file=/etc/tempo/tempo.yaml
+    volumes:
+      - ../platform/observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - hafnium-network
+
+  # ============================================================================
+  # Vault (Dev Mode)
+  # ============================================================================
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: hafnium-vault
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    networks:
+      - hafnium-network
+
+  # ============================================================================
+  # ML Platform
+  # ============================================================================
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    container_name: hafnium-mlflow
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://hafnium:hafnium_dev@postgres:5432/mlflow
+      MLFLOW_ARTIFACT_URI: s3://mlflow/
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    command: mlflow server --host 0.0.0.0 --port 5000
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    networks:
+      - hafnium-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  redpanda-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  tempo-data:
+
+
+networks:
+  hafnium-network:
+    driver: bridge
