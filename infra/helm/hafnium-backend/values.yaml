@@ -1,0 +1,205 @@
+# Default values for hafnium-backend
+# This is a YAML-formatted file.
+
+global:
+  imageRegistry: ghcr.io/olaflaitinen/hafnium
+  imagePullSecrets:
+    - name: ghcr-secret
+
+# Service configuration
+services:
+  identityService:
+    enabled: true
+    name: identity-service
+    replicaCount: 2
+    image:
+      repository: identity-service
+      tag: latest
+      pullPolicy: Always
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilization: 70
+
+  screeningService:
+    enabled: true
+    name: screening-service
+    replicaCount: 2
+    image:
+      repository: screening-service
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  monitoringService:
+    enabled: true
+    name: monitoring-service
+    replicaCount: 2
+    image:
+      repository: monitoring-service
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  caseService:
+    enabled: true
+    name: case-service
+    replicaCount: 2
+    image:
+      repository: case-service
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  vaultService:
+    enabled: true
+    name: vault-service
+    replicaCount: 2
+    image:
+      repository: vault-service
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  riskEngineService:
+    enabled: true
+    name: risk-engine-service
+    replicaCount: 2
+    image:
+      repository: risk-engine-service
+      tag: latest
+    resources:
+      requests:
+        memory: "768Mi"
+        cpu: "500m"
+      limits:
+        memory: "1.5Gi"
+        cpu: "1000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 20
+      targetCPUUtilization: 60
+
+  signalsService:
+    enabled: true
+    name: signals-service
+    replicaCount: 2
+    image:
+      repository: signals-service
+      tag: latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+
+  apiFacade:
+    enabled: true
+    name: api-facade
+    replicaCount: 2
+    image:
+      repository: api-facade
+      tag: latest
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "250m"
+
+# Common configuration
+config:
+  database:
+    host: postgresql
+    port: 5432
+    name: hafnium
+  kafka:
+    bootstrapServers: redpanda:9092
+  redis:
+    host: redis
+    port: 6379
+  keycloak:
+    issuerUri: http://keycloak:8080/realms/hafnium
+  opa:
+    url: http://opa:8181
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: api.hafnium.dev
+      paths:
+        - path: /api
+          pathType: Prefix
+  tls:
+    - secretName: hafnium-api-tls
+      hosts:
+        - api.hafnium.dev
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+# Pod security context
+podSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Service account
+serviceAccount:
+  create: true
+  name: hafnium-backend
+
+# Dependencies
+postgresql:
+  enabled: false  # Use external PostgreSQL in production
+
+redis:
+  enabled: false  # Use external Redis in production
+
+# Monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s

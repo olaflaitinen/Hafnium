@@ -1,0 +1,82 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hafnium-api
+  namespace: hafnium-backend
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.hafnium.dev
+      secretName: hafnium-api-tls
+  rules:
+    - host: api.hafnium.dev
+      http:
+        paths:
+          - path: /api/v1/customers
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 8080
+          - path: /api/v1/kyc
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 8080
+          - path: /api/v1/risk
+            pathType: Prefix
+            backend:
+              service:
+                name: risk-engine-service
+                port:
+                  number: 8080
+          - path: /api/v1/screening
+            pathType: Prefix
+            backend:
+              service:
+                name: screening-service
+                port:
+                  number: 8080
+          - path: /api/v1/transactions
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-service
+                port:
+                  number: 8080
+          - path: /api/v1/alerts
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-service
+                port:
+                  number: 8080
+          - path: /api/v1/cases
+            pathType: Prefix
+            backend:
+              service:
+                name: case-service
+                port:
+                  number: 8080
+          - path: /api/v1/vault
+            pathType: Prefix
+            backend:
+              service:
+                name: vault-service
+                port:
+                  number: 8080
+          - path: /api/v1/signals
+            pathType: Prefix
+            backend:
+              service:
+                name: signals-service
+                port:
+                  number: 8080

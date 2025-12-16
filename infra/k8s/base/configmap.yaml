@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-common-config
+  namespace: hafnium-backend
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  DB_HOST: "postgresql.hafnium-data.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "hafnium"
+  KAFKA_BOOTSTRAP_SERVERS: "redpanda.hafnium-data.svc.cluster.local:9092"
+  REDIS_HOST: "redis.hafnium-data.svc.cluster.local"
+  REDIS_PORT: "6379"
+  KEYCLOAK_ISSUER_URI: "http://keycloak.hafnium-infra.svc.cluster.local:8080/realms/hafnium"
+  OPA_URL: "http://opa.hafnium-infra.svc.cluster.local:8181"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.hafnium-observability.svc.cluster.local:4317"
+  AI_INFERENCE_URL: "http://ai-inference.hafnium-backend.svc.cluster.local:8000"

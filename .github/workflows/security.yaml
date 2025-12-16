@@ -116,6 +116,60 @@ jobs:
           category: "/language:java,python,javascript"
 
   # ==========================================================================
+  # SBOM Generation
+  # ==========================================================================
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          artifact-name: hafnium-sbom.spdx.json
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  # ==========================================================================
+  # Java Dependency Check (OWASP)
+  # ==========================================================================
+  java-dependency-check:
+    name: Java Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'hafnium-backend'
+          path: 'services/backend-java'
+          format: 'HTML'
+          args: >
+            --failOnCVSS 7
+            --enableExperimental
+
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: reports/
+
+  # ==========================================================================
   # Infrastructure as Code Scanning
   # ==========================================================================
   iac-scan:

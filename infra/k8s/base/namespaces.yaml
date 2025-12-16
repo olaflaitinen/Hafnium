@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hafnium-backend
+  labels:
+    app.kubernetes.io/name: hafnium
+    app.kubernetes.io/component: backend
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hafnium-data
+  labels:
+    app.kubernetes.io/name: hafnium
+    app.kubernetes.io/component: data
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hafnium-infra
+  labels:
+    app.kubernetes.io/name: hafnium
+    app.kubernetes.io/component: infrastructure
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hafnium-observability
+  labels:
+    app.kubernetes.io/name: hafnium
+    app.kubernetes.io/component: observability
