@@ -9,6 +9,7 @@ Accepted
 The Hafnium platform requires processing of high-volume transaction data with low latency, while maintaining loose coupling between services. Traditional synchronous request-response patterns would create tight coupling and limit scalability.
 
 Key requirements:
+
 - Process millions of transactions per day
 - Support real-time monitoring and alerting
 - Enable independent scaling of components
@@ -20,6 +21,7 @@ Key requirements:
 We will adopt an event-driven architecture using Apache Kafka (via Redpanda) as the central event backbone.
 
 Key aspects:
+
 1. **Event Sourcing**: State changes are captured as immutable events
 2. **CQRS**: Separate read and write paths for optimal performance
 3. **Saga Pattern**: Distributed transactions via choreography
@@ -28,6 +30,7 @@ Key aspects:
 ## Consequences
 
 ### Positive
+
 - Services are loosely coupled and can evolve independently
 - Events provide complete audit trail
 - Horizontal scaling is straightforward
@@ -35,12 +38,14 @@ Key aspects:
 - Supports both real-time and batch processing
 
 ### Negative
+
 - Increased operational complexity
 - Eventual consistency requires careful handling
 - Debugging distributed flows is more complex
 - Requires investment in observability
 
 ### Mitigations
+
 - Comprehensive tracing with correlation IDs
 - Dead letter queues for failed events
 - Saga state persistence for recovery

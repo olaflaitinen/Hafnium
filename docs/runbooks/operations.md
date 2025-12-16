@@ -7,6 +7,7 @@
 ## Deployment Strategy
 
 We utilize **GitOps** using ArgoCD.
+
 - **Source of Truth**: `infra/k8s/overlays/prod`
 - **Sync Policy**: Automated with manual approval window for promotion.
 
@@ -15,6 +16,7 @@ We utilize **GitOps** using ArgoCD.
 ## Routine Operations
 
 ### 1. Scaling Services
+
 Autoscaling is enabled (HPA), but manual override is possible:
 
 ```bash
@@ -23,6 +25,7 @@ kubectl scale deployment risk-engine -n hafnium --replicas=5
 ```
 
 ### 2. Database Maintenance
+
 Vacuuming is automated. For manual failover:
 
 ```bash
@@ -33,11 +36,13 @@ aws rds reboot-db-instance \
 ```
 
 ### 3. Key Rotation
+
 Secrets are managed in Vault. To rotate API keys:
 
 1. Generate new key in upstream provider.
 2. Update Vault path: `secret/hafnium/prod/api-keys`.
 3. Restart pods to pick up new config (if not using dynamic reload):
+
     ```bash
     kubectl rollout restart deployment backend-api -n hafnium
     ```
@@ -47,6 +52,7 @@ Secrets are managed in Vault. To rotate API keys:
 ## Monitoring & Alerting
 
 ### Key Dashboards
+
 - **Global Overview**: System health, error rates, top-line metrics.
 - **Risk Performance**: Inference latency, model drift (KL Divergence).
 - **Business Ops**: Case volume, false positive rate, average handling time.

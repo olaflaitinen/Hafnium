@@ -33,12 +33,15 @@ To be accepted, a candidate model must meet **all** gating criteria:
 ## 3. Methodology
 
 ### Cross-Validation
+
 - **Strategy**: Time-series split (rolling window).
 - **Folds**: 5 folds.
 - **Gap**: 7-day gap between train and test to prevent leakage.
 
 ### Bias Testing (Fairness)
+
 Model performance is stratified by protected attributes (e.g., Age Bracket, Geo-Location) to ensure equal treatment.
+
 - **Metric**: Equalized Odds.
 - **Requirement**: The difference in FPR between any two groups must not exceed 5%.
 

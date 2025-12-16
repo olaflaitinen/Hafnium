@@ -29,6 +29,7 @@ h_l = σ(W_l · h_{l-1} + b_l)
 ```
 
 Where:
+
 - W_l: Weight matrix
 - b_l: Bias vector
 - σ: Activation function (ReLU for hidden, Sigmoid for output)
@@ -116,6 +117,7 @@ Where B_b is the b-th confidence bin.
 ### 3.3 Early Stopping
 
 Stop training when:
+
 - Validation AUC does not improve for 10 epochs
 - Monotonicity violation rate > 1%
 
@@ -204,6 +206,7 @@ score_calibrated = sigmoid(logits / temperature)
 ## 7. Implementation Reference
 
 See implementation in:
+
 - `services/ai-platform/src/hafnium_ai/nn/pinn.py`
 
 ---

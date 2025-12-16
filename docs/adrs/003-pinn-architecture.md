@@ -7,6 +7,7 @@
 ## Context
 
 The risk scoring system requires models that are:
+
 1. Accurate and performant
 2. Interpretable for regulatory compliance
 3. Robust against adversarial manipulation
@@ -38,6 +39,7 @@ L = L_supervised + λ₁L_monotonicity + λ₂L_smoothness + λ₃L_calibration
 ```
 
 Where:
+
 - L_supervised: Binary cross-entropy or focal loss
 - L_monotonicity: Penalizes negative gradients for monotonic features
 - L_smoothness: Gradient norm penalty
@@ -64,23 +66,27 @@ Where:
 ## Consequences
 
 ### Positive
+
 - Regulatory-compliant explainability ("higher X → higher risk")
 - Reduced adversarial vulnerability
 - Well-calibrated probability outputs
 - Scientific grounding for risk calculations
 
 ### Negative
+
 - More complex training procedure
 - Hyperparameter tuning for loss weights
 - Potentially slower convergence
 - Requires domain expertise for constraint specification
 
 ### Risks
+
 - Over-constraining may reduce accuracy
 - Constraint specification errors
 - Performance overhead in inference
 
 ### Mitigations
+
 - Multi-phase training (supervised → constrained)
 - Automated hyperparameter search
 - Continuous monitoring of constraint satisfaction

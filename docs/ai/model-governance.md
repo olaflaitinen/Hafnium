@@ -7,6 +7,7 @@ This document establishes the governance framework for AI/ML models in the Hafni
 ## Overview
 
 Model governance ensures that AI/ML systems are developed, deployed, and operated in a manner that is:
+
 - Compliant with regulatory requirements
 - Ethical and fair
 - Transparent and explainable
@@ -185,10 +186,12 @@ maintenance:
 ### Model Update Approval
 
 Minor updates require:
+
 - AI Team approval
 - Automated validation pass
 
 Major updates require:
+
 - Full approval workflow
 
 ---

@@ -7,11 +7,13 @@
 ## Context
 
 The Hafnium platform performs multi-step operations that span multiple services:
+
 1. Customer onboarding (create customer → KYC → screening → verification)
 2. Alert processing (score → evaluate → alert → case creation)
 3. Transaction processing (validate → enrich → score → persist)
 
 Traditional distributed transactions (2PC) are impractical in a microservices architecture due to:
+
 - Tight coupling between services
 - Availability requirements
 - Performance overhead
@@ -89,23 +91,27 @@ Each saga step has a compensating action:
 ## Consequences
 
 ### Positive
+
 - High availability (no blocking)
 - Clear transaction boundaries
 - Observable saga state
 - Flexible compensation logic
 
 ### Negative
+
 - Eventual consistency (not immediate)
 - Complex compensation logic
 - Increased implementation effort
 - Potential for "orphaned" states
 
 ### Risks
+
 - Compensation failures
 - Saga state corruption
 - Timeout handling complexity
 
 ### Mitigations
+
 - Saga state monitoring dashboards
 - Dead letter queues for failed steps
 - Periodic saga state reconciliation

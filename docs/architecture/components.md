@@ -65,40 +65,42 @@ flowchart TB
 - **Purpose**: Processes high-throughput event streams for fraud detection.
 - **Technology**: Faust (Python streaming library).
 - **Topology**:
-    1.  **Ingest**: Raw transaction topic.
-    2.  **Enrich**: Join with customer dimension table (KTable).
-    3.  **Detect**: Evaluate rules and ML models.
-    4.  **Alert**: Emit to alerts topic if threshold breached.
+    1. **Ingest**: Raw transaction topic.
+    2. **Enrich**: Join with customer dimension table (KTable).
+    3. **Detect**: Evaluate rules and ML models.
+    4. **Alert**: Emit to alerts topic if threshold breached.
 
 ### 3. Backend API (`services/backend-java`)
 
 - **Purpose**: Manages system of record entities (Customer, Case, Report).
 - **Framework**: Spring Boot 3.2.
 - **Key Modules**:
-    - `customer-service`: KYC/CDD data management.
-    - `case-service`: Investigation workflow state machine.
-    - `report-service`: Regulatory report generation (SAR/CTR).
+  - `customer-service`: KYC/CDD data management.
+  - `case-service`: Investigation workflow state machine.
+  - `report-service`: Regulatory report generation (SAR/CTR).
 
 ### 4. AI Platform (`services/ai-platform`)
 
 - **Purpose**: Provides MLOps infrastructure for the risk model lifecycle.
 - **Components**:
-    - **Training**: Airflow DAGs for retraining.
-    - **Registry**: MLflow model versioning.
-    - **Serving**: BentoML inference containers.
+  - **Training**: Airflow DAGs for retraining.
+  - **Registry**: MLflow model versioning.
+  - **Serving**: BentoML inference containers.
 
 ---
 
 ## Interfaces & Boundaries
 
 ### API Gateway (Ingress)
+
 All external traffic enters via Envoy. Authentication is terminated at the gateway via JWT validation against Keycloak public keys.
 
 ### Event Bus (Async)
+
 Inter-service communication for non-blocking operations uses Kafka. All messages are serialized using Avro schemas.
 
 ### Data Persistence
+
 - **PostgreSQL**: System of record. Relational integrity required.
 - **Redis**: Ephemeral state, sliding windows, feature store online serving.
 - **MinIO**: Object storage for documents (KYC evidence) and model artifacts.
-

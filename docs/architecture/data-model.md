@@ -86,6 +86,7 @@ stateDiagram-v2
 ## Schema Definitions
 
 ### Database Standards
+
 - **Dialect**: PostgreSQL 15+
 - **Primary Keys**: UUID v4 (Random)
 - **Timezones**: UTC always (`TIMESTAMPTZ`)

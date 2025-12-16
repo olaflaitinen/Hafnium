@@ -18,8 +18,8 @@
 
 ### Alternatives Considered
 
-1.  **Option A**: [Pros/Cons]
-2.  **Option B**: [Pros/Cons]
+1. **Option A**: [Pros/Cons]
+2. **Option B**: [Pros/Cons]
 
 ## Consequences
 

@@ -50,9 +50,10 @@ All state-changing actions in the platform emit an immutable audit event to a de
 ## Model Explainability
 
 For every automated risk decision, the system persists:
-1.  **Model Version**: SHA of the model artifact.
-2.  **Input Vector**: Feature values at inference time.
-3.  **SHAP/LIME Values**: Contribution of each feature to the score.
+
+1. **Model Version**: SHA of the model artifact.
+2. **Input Vector**: Feature values at inference time.
+3. **SHAP/LIME Values**: Contribution of each feature to the score.
 
 This ensures that any automated decision can be reproduced and explained to regulators years after the fact.
 
@@ -61,6 +62,7 @@ This ensures that any automated decision can be reproduced and explained to regu
 ## Integrity Protection
 
 Audit logs are protected against tampering:
-1.  **Chained Hashing**: Each log entry includes the hash of the previous entry.
-2.  **Write-Once Storage**: S3 Object Lock in Governance mode.
-3.  **Access Control**: No single administrator has delete permissions for audit logs.
+
+1. **Chained Hashing**: Each log entry includes the hash of the previous entry.
+2. **Write-Once Storage**: S3 Object Lock in Governance mode.
+3. **Access Control**: No single administrator has delete permissions for audit logs.

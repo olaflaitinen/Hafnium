@@ -8,9 +8,9 @@ The Hafnium platform handles sensitive financial data and makes high-stakes auto
 
 We employ two complementary threat modeling methodologies:
 
-1.  **STRIDE**: Focuses on technical threats to system components.
+1. **STRIDE**: Focuses on technical threats to system components.
     [See STRIDE Analysis](stride.md)
-2.  **LINDDUN**: Focuses on privacy threats to user data.
+2. **LINDDUN**: Focuses on privacy threats to user data.
     [See LINDDUN Analysis](linddun.md)
 
 ---
@@ -29,12 +29,15 @@ We employ two complementary threat modeling methodologies:
 ## Attack Surface
 
 ### 1. Public API Gateway
+
 The primary entry point for all external traffic. Hardened with WAF, Rate Limiting, and mTLS.
 
 ### 2. Supply Chain
+
 Dependencies (Python/Java/Node packages) represent a significant vector. Controlled via Software Bill of Materials (SBOM) and signed releases.
 
 ### 3. Insider Threat
+
 Privileged access by developers or operators. Mitigated via Least Privilege, MFA, and immutable audit logs.
 
 ---

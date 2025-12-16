@@ -82,6 +82,7 @@ graph LR
 ## Schema Evolution Compatibility
 
 All event schemas must adhere to **BACKWARD capability**:
+
 - ✅ Add optional fields
 - ❌ Rename existing fields
 - ❌ Remove fields
@@ -93,9 +94,9 @@ Schema changes are validated against the Schema Registry during CI/CD.
 
 ## Event Guarantees
 
-1.  **Ordering**: Guaranteed per partnership key (usually `customer_id` or `account_id`).
-2.  **Delivery**: At-least-once delivery semantics. Consumers must be idempotent.
-3.  **Durability**: `acks=all`, replication factor 3.
+1. **Ordering**: Guaranteed per partnership key (usually `customer_id` or `account_id`).
+2. **Delivery**: At-least-once delivery semantics. Consumers must be idempotent.
+3. **Durability**: `acks=all`, replication factor 3.
 
 ---
 
@@ -104,5 +105,6 @@ Schema changes are validated against the Schema Registry during CI/CD.
 Messages that fail processing (schema validation error, business logic exception) are routed to a DLQ topic: `original.topic.dlq`.
 
 **Replay Policy**:
+
 - Automated replay for transient errors (network).
 - Manual inspection and replay for poison pill messages.

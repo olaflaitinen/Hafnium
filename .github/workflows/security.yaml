@@ -105,12 +105,7 @@ jobs:
         with:
           languages: java, python, javascript
 
-      - name: Autobuild Not-Java
-        if: matrix.language != 'java'
-        uses: github/codeql-action/autobuild@v3
-
       - name: Build Java Backend
-        if: matrix.language == 'java'
         run: |
           cd services/backend-java
           chmod +x gradlew
@@ -165,7 +160,7 @@ jobs:
       - name: Check Python Licenses
         run: |
           cd services/risk-engine
-          pip install -e .
+          pip install .
           pip-licenses --format=csv --output-file=licenses.csv
           # Check for prohibited licenses
           if grep -E "GPL|AGPL|SSPL" licenses.csv; then

@@ -47,26 +47,31 @@ Hafnium is a unified RegTech and Cybersecurity platform built on an event-driven
 ## Component Layers
 
 ### Edge Layer
+
 - **API Gateway (Envoy)**: TLS termination, routing, rate limiting
 - **Frontend (React)**: User interface for analysts and operators
 
 ### Service Layer
+
 - **Backend (Java/Spring Boot)**: Core business logic and REST APIs
 - **Risk Engine (Python/FastAPI)**: Real-time risk scoring
 - **Stream Processor (Kafka Streams)**: Event processing and enrichment
 
 ### Data Layer
+
 - **PostgreSQL**: Primary relational database
 - **Redis**: Caching and session storage
 - **Redpanda**: Event streaming (Kafka-compatible)
 - **MinIO**: Object storage for documents and models
 
 ### AI Layer
+
 - **AI Platform**: Model training, registry, and inference
 - **Feature Store (Feast)**: Feature management
 - **Model Registry (MLflow)**: Model versioning and deployment
 
 ### Security Layer
+
 - **Keycloak**: Identity and access management
 - **OPA**: Policy-based authorization
 - **Vault**: Secrets management

@@ -21,6 +21,7 @@ flowchart TD
 ```
 
 ### Gateway Responsibilities
+
 - **Termination**: TLS 1.3 termination.
 - **Authentication**: JWT signature verification (JWKS).
 - **Rate Limiting**: Token bucket algorithm per IP/Client.
@@ -34,7 +35,9 @@ flowchart TD
 All synchronous service interfaces follow **REST Level 2** maturity:
 
 ### 1. Versioning
+
 URI Path Versioning is mandatory.
+
 - `GET /api/v1/customers`
 - `POST /api/v1/risk/score`
 
@@ -92,6 +95,7 @@ Standard JSON envelope for all responses:
 ## Idempotency
 
 All mutation endpoints (`POST`, `PATCH`) support the `Idempotency-Key` header.
+
 - The gateway caches the response for the key for 24 hours.
 - Replayed requests receive the cached response without re-processing.
 

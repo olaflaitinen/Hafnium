@@ -21,25 +21,30 @@ The following tooling is required to contribute to the Hafnium codebase. Strict 
 
 ## Quick Start
 
-1.  **Clone Repository**
+1. **Clone Repository**
+
     ```bash
     git clone git@github.com:olaflaitinen/hafnium.git
     cd hafnium
     ```
 
-2.  **Environment Setup**
+2. **Environment Setup**
+
     ```bash
     cp .env.example .env
     # Edit .env for any custom local settings
     ```
 
-3.  **Start Services**
+3. **Start Services**
+
     ```bash
     make up
     ```
+
     This launches all core services (Postgres, Redis, Kafka, Backend, Risk Engine) in background mode.
 
-4.  **Verify Status**
+4. **Verify Status**
+
     ```bash
     make health
     ```
@@ -53,6 +58,7 @@ The following tooling is required to contribute to the Hafnium codebase. Strict 
 - **Port**: 8080 (API)
 - **Debug Port**: 5005
 - **Reload**:
+
     ```bash
     cd services/backend-java
     ./gradlew bootRun
@@ -62,18 +68,21 @@ The following tooling is required to contribute to the Hafnium codebase. Strict 
 
 - **Port**: 8000
 - **Virtual Env**:
+
     ```bash
     cd services/risk-engine
     python -m venv venv
     source venv/bin/activate
     pip install -e ".[dev]"
     ```
+
 - **Run**: `uvicorn hafnium_risk.main:app --reload`
 
 ### 3. Frontend Development (React)
 
 - **Port**: 3000
 - **Setup**:
+
     ```bash
     cd services/frontend-react
     npm install
@@ -95,7 +104,9 @@ The following tooling is required to contribute to the Hafnium codebase. Strict 
 ## Troubleshooting
 
 ### Resetting Data
+
 To wipe the database and start fresh:
+
 ```bash
 make down
 docker volume prune -f
@@ -104,4 +115,5 @@ make seed
 ```
 
 ### Kafka Connectivity
+
 If Kafka listeners fail, ensure `KAFKA_ADVERTISED_LISTENERS` in `docker-compose.yaml` matches your local network alias.

@@ -7,6 +7,7 @@
 ## Context
 
 The Hafnium platform requires fine-grained authorization that:
+
 1. Enforces role-based access control (RBAC)
 2. Implements tenant isolation
 3. Supports attribute-based decisions (risk level, time-based access)
@@ -80,6 +81,7 @@ platform/policies/
 ## Consequences
 
 ### Positive
+
 - Centralized, version-controlled policies
 - Testable authorization logic
 - Separation of policy from code
@@ -87,17 +89,20 @@ platform/policies/
 - Audit-ready decision logging
 
 ### Negative
+
 - Learning curve for Rego language
 - Additional infrastructure component
 - Potential single point of failure
 - Policy deployment coordination
 
 ### Risks
+
 - Policy errors could block legitimate access
 - Performance impact at high request rates
 - Complexity in policy debugging
 
 ### Mitigations
+
 - Comprehensive policy testing in CI
 - Canary deployments for policy changes
 - OPA decision caching

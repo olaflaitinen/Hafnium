@@ -19,12 +19,14 @@ We will implement tenant isolation using a combination of:
 ### Implementation Details
 
 **Database RLS**:
+
 ```sql
 CREATE POLICY tenant_isolation ON customers
   USING (tenant_id = current_setting('app.tenant_id')::uuid);
 ```
 
 **JWT Claims**:
+
 ```json
 {
   "tenant_id": "uuid",
@@ -34,6 +36,7 @@ CREATE POLICY tenant_isolation ON customers
 ```
 
 **OPA Policy**:
+
 ```rego
 allow {
   input.resource.tenant_id == input.subject.tenant_id
@@ -59,21 +62,25 @@ allow {
 ## Consequences
 
 ### Positive
+
 - Strong isolation with defense in depth
 - Simplified application logic (RLS is automatic)
 - Audit trail at database level
 - Compliance with data residency requirements
 
 ### Negative
+
 - PostgreSQL lock-in for RLS features
 - Slight performance overhead for RLS policies
 - Complexity in cross-tenant analytics (requires explicit bypass)
 
 ### Risks
+
 - Misconfigured RLS could expose data
 - Performance degradation at extreme scale
 
 ### Mitigations
+
 - Automated RLS policy testing
 - Performance benchmarking in CI
 - Regular security audits

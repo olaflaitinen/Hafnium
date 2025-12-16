@@ -46,16 +46,18 @@ flowchart TB
 ## Container Strategy
 
 ### Base Images
+
 - **Distroless** (Google) for production runtimes to minimize attack surface.
 - **Alpine** for utility jobs.
 - **UBI** (Universal Base Image) for enterprise compliance requirements.
 
 ### Orchestration (Kubernetes)
+
 - **Ingress**: NGINX or AWS ALB Controller.
 - **Service Mesh**: Linkerd (lightweight) or Istio (enterprise).
 - **Autoscaling**:
-    - **HPA**: Horizontal Pod Autoscaler based on CPU/Memory/Lag.
-    - **Cluster Autoscaler**: Node provisioning.
+  - **HPA**: Horizontal Pod Autoscaler based on CPU/Memory/Lag.
+  - **Cluster Autoscaler**: Node provisioning.
 
 ---
 
@@ -87,6 +89,7 @@ infra/
 ```
 
 ### Immutable Infrastructure
+
 Server instances are never patched in place. We replace the underlying nodes (AMI rotation) or containers (Image tag update) for every change.
 
 ---
@@ -100,5 +103,6 @@ Server instances are never patched in place. We replace the underlying nodes (AM
 | State | S3 Cross-region replication | < 15 min | N/A |
 
 ### RPO/RTO Targets
+
 - **Recovery Point Objective (RPO)**: 5 minutes (max data loss).
 - **Recovery Time Objective (RTO)**: 1 hour (max downtime).
