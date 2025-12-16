@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Common domain models and DTOs shared across services'
+
+dependencies {
+    api 'jakarta.validation:jakarta.validation-api:3.0.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.16.1'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.1'
+}

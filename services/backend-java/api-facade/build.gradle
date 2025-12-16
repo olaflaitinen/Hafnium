@@ -1,0 +1,23 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+description = 'API Facade - Stable integration surface for frontend'
+
+dependencies {
+    implementation project(':common:common-model')
+    implementation project(':common:common-security')
+    implementation project(':common:common-web')
+    implementation project(':common:common-authz')
+
+    // Gateway routing
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // Resilience
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+    implementation 'io.github.resilience4j:resilience4j-ratelimiter:2.2.0'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

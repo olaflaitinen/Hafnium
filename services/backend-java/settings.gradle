@@ -1,1 +1,21 @@
 rootProject.name = 'hafnium-backend'
+
+// Shared libraries
+include 'common:common-model'
+include 'common:common-security'
+include 'common:common-kafka'
+include 'common:common-web'
+include 'common:common-authz'
+
+// Application services
+include 'identity-service'
+include 'screening-service'
+include 'monitoring-service'
+include 'case-service'
+include 'vault-service'
+include 'risk-engine-service'
+include 'signals-service'
+include 'api-facade'
+
+// Enable type-safe project accessors
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS')

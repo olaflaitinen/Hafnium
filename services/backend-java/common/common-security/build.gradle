@@ -1,0 +1,20 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Common security utilities for JWT validation and tenant context'
+
+dependencies {
+    api project(':common:common-model')
+
+    // Spring Security
+    api 'org.springframework.boot:spring-boot-starter-security:3.2.1'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.2.1'
+
+    // JWT
+    implementation 'org.springframework.security:spring-security-oauth2-jose:6.2.1'
+
+    // Web for filters
+    compileOnly 'org.springframework:spring-web:6.1.2'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+}

@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Common Kafka utilities for event publishing and consuming'
+
+dependencies {
+    api project(':common:common-model')
+
+    // Spring Kafka
+    api 'org.springframework.kafka:spring-kafka:3.1.1'
+
+    // JSON serialization
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.1'
+}

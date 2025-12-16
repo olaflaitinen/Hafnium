@@ -1,76 +1,134 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.1'
-    id 'io.spring.dependency-management' version '1.1.4'
-    id 'com.diffplug.spotless' version '6.23.3'
+    id 'com.diffplug.spotless' version '6.23.3' apply false
+    id 'org.springframework.boot' version '3.2.1' apply false
+    id 'io.spring.dependency-management' version '1.1.4' apply false
+    id 'net.ltgt.errorprone' version '3.1.0' apply false
 }
 
-group = 'dev.hafnium'
-version = '1.0.0'
+allprojects {
+    group = 'dev.hafnium'
+    version = '1.0.0'
 
-java {
-    sourceCompatibility = '21'
-}
-
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
+    repositories {
+        mavenCentral()
     }
 }
 
-repositories {
-    mavenCentral()
-}
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'com.diffplug.spotless'
+    apply plugin: 'net.ltgt.errorprone'
 
-dependencies {
-    // Spring Boot
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    
-    // Kafka
-    implementation 'org.springframework.kafka:spring-kafka'
-    
-    // Database
-    runtimeOnly 'org.postgresql:postgresql'
-    implementation 'org.flywaydb:flyway-core'
-    
-    // Redis
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    
-    // Observability
-    implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
-    implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter:1.32.0-alpha'
-    
-    // Utilities
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
-    
-    // OpenAPI
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
-    
-    // Testing
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:kafka'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-spotless {
     java {
-        googleJavaFormat()
-        removeUnusedImports()
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    dependencies {
+        // Error Prone for compile-time bug detection
+        errorprone 'com.google.errorprone:error_prone_core:2.23.0'
+
+        // Common test dependencies
+        testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+        testImplementation 'org.mockito:mockito-core:5.8.0'
+        testImplementation 'org.mockito:mockito-junit-jupiter:5.8.0'
+        testImplementation 'org.assertj:assertj-core:3.24.2'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs += [
+            '-parameters',
+            '-Xlint:all',
+            '-Xlint:-processing',
+            '-Xlint:-serial'
+        ]
+        options.errorprone {
+            disableWarningsInGeneratedCode = true
+            excludedPaths = '.*/build/generated/.*'
+        }
+    }
+
+    spotless {
+        java {
+            googleJavaFormat('1.18.1')
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events 'passed', 'skipped', 'failed'
+            showExceptions true
+            showCauses true
+            showStackTraces true
+        }
+    }
+}
+
+// Configure Spring Boot services
+def springBootServices = [
+    'identity-service',
+    'screening-service',
+    'monitoring-service',
+    'case-service',
+    'vault-service',
+    'risk-engine-service',
+    'signals-service',
+    'api-facade'
+]
+
+configure(subprojects.findAll { it.name in springBootServices }) {
+    apply plugin: 'org.springframework.boot'
+    apply plugin: 'io.spring.dependency-management'
+
+    dependencies {
+        // Spring Boot Core
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+        // Observability
+        implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter:2.1.0-alpha'
+
+        // Lombok
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+
+        // MapStruct
+        implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+        annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+        annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+
+        // Testing
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+        testImplementation 'org.testcontainers:junit-jupiter'
+    }
+
+    bootJar {
+        archiveFileName = "${project.name}.jar"
+    }
+
+    springBoot {
+        buildInfo()
+    }
+}
+
+// Configure common libraries (non-bootable JARs)
+configure(subprojects.findAll { it.path.startsWith(':common:') }) {
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+    }
+
+    // Common libraries should produce plain JARs, not boot JARs
+    jar {
+        enabled = true
     }
 }

@@ -1,0 +1,20 @@
+plugins {
+    id 'java-library'
+}
+
+description = 'Common web utilities for REST controllers'
+
+dependencies {
+    api project(':common:common-model')
+    api project(':common:common-security')
+
+    // Spring Web
+    api 'org.springframework.boot:spring-boot-starter-web:3.2.1'
+    api 'org.springframework.boot:spring-boot-starter-validation:3.2.1'
+
+    // OpenAPI
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
+
+    // Resilience
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.2.0'
+}
