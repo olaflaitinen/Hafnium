@@ -105,8 +105,16 @@ jobs:
         with:
           languages: java, python, javascript
 
-      - name: Autobuild
+      - name: Autobuild Not-Java
+        if: matrix.language != 'java'
         uses: github/codeql-action/autobuild@v3
+
+      - name: Build Java Backend
+        if: matrix.language == 'java'
+        run: |
+          cd services/backend-java
+          chmod +x gradlew
+          ./gradlew clean build -x test
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
