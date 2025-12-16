@@ -1,0 +1,416 @@
+# Hafnium Platform - Local Development Environment
+# This file configures all services for local development.
+# Usage: docker compose up -d
+
+services:
+  # ============================================================================
+  # EDGE LAYER
+  # ============================================================================
+  
+  api-gateway:
+    image: envoyproxy/envoy:v1.28-latest
+    container_name: hf-api-gateway
+    volumes:
+      - ./platform/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+      - "9901:9901"  # Admin
+    depends_on:
+      - backend-java
+      - risk-engine
+    networks:
+      - hafnium-edge
+      - hafnium-internal
+
+  # ============================================================================
+  # AUTHENTICATION AND AUTHORIZATION
+  # ============================================================================
+  
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: hf-keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: hafnium
+      KC_DB_PASSWORD: hafnium_dev
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./platform/keycloak/realms:/opt/keycloak/data/import:ro
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  opa:
+    image: openpolicyagent/opa:0.60.0-rootless
+    container_name: hf-opa
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - /policies
+    volumes:
+      - ./platform/policies:/policies:ro
+    ports:
+      - "8181:8181"
+    networks:
+      - hafnium-internal
+
+  # ============================================================================
+  # DATA LAYER
+  # ============================================================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: hf-postgres
+    environment:
+      POSTGRES_USER: hafnium
+      POSTGRES_PASSWORD: hafnium_dev
+      POSTGRES_DB: hafnium
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - hafnium-data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hafnium"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: hf-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - hafnium-data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.4
+    container_name: hf-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr=PLAINTEXT://0.0.0.0:8082
+      - --advertise-pandaproxy-addr=PLAINTEXT://redpanda:8082
+      - --schema-registry-addr=PLAINTEXT://0.0.0.0:8085
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+      - "8085:8085"
+    networks:
+      - hafnium-data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.3.8
+    container_name: hf-redpanda-console
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8085
+    ports:
+      - "8083:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - hafnium-data
+
+  minio:
+    image: minio/minio:RELEASE.2024-01-01T16-36-33Z
+    container_name: hf-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - hafnium-data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================================
+  # SECRETS MANAGEMENT
+  # ============================================================================
+  
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: hf-vault
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    networks:
+      - hafnium-internal
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================================
+  # APPLICATION SERVICES
+  # ============================================================================
+  
+  backend-java:
+    build:
+      context: ./services/backend-java
+      dockerfile: Dockerfile.dev
+    container_name: hf-backend-java
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    ports:
+      - "8084:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+
+  risk-engine:
+    build:
+      context: ./services/risk-engine
+      dockerfile: Dockerfile.dev
+    container_name: hf-risk-engine
+    environment:
+      DATABASE_URL: postgresql://hafnium:hafnium_dev@postgres:5432/hafnium
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      OPA_URL: http://opa:8181/v1/data/hafnium/authz/allow
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-root-token
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+
+  ai-inference:
+    build:
+      context: ./services/ai-platform
+      dockerfile: Dockerfile.inference
+    container_name: hf-ai-inference
+    environment:
+      MODEL_STORE: s3://hafnium-models
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    ports:
+      - "8001:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  stream-processor:
+    build:
+      context: ./services/stream-processor
+      dockerfile: Dockerfile.dev
+    container_name: hf-stream-processor
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SCHEMA_REGISTRY_URL: http://redpanda:8085
+      DATABASE_URL: postgresql://hafnium:hafnium_dev@postgres:5432/hafnium
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+
+  frontend:
+    build:
+      context: ./services/frontend-react
+      dockerfile: Dockerfile.dev
+    container_name: hf-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+      REACT_APP_KEYCLOAK_URL: http://localhost:8081
+      REACT_APP_KEYCLOAK_REALM: hafnium
+      REACT_APP_KEYCLOAK_CLIENT_ID: hafnium-web
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./services/frontend-react/src:/app/src:ro
+    networks:
+      - hafnium-edge
+
+  # ============================================================================
+  # OBSERVABILITY
+  # ============================================================================
+  
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: hf-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./platform/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./platform/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - hafnium-observability
+      - hafnium-internal
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: hf-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./platform/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./platform/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - hafnium-observability
+
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: hf-loki
+    command: -config.file=/etc/loki/loki.yaml
+    volumes:
+      - ./platform/loki/loki.yaml:/etc/loki/loki.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - hafnium-observability
+
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: hf-tempo
+    command: -config.file=/etc/tempo/tempo.yaml
+    volumes:
+      - ./platform/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "3200:3200"   # Tempo query
+    networks:
+      - hafnium-observability
+      - hafnium-internal
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+
+networks:
+  hafnium-edge:
+    name: hafnium-edge
+  hafnium-internal:
+    name: hafnium-internal
+  hafnium-data:
+    name: hafnium-data
+  hafnium-observability:
+    name: hafnium-observability
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+
+volumes:
+  postgres-data:
+  redis-data:
+  redpanda-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  tempo-data:

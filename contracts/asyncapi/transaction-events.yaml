@@ -1,0 +1,430 @@
+asyncapi: 2.6.0
+info:
+  title: Hafnium Transaction Events
+  version: 1.0.0
+  description: |
+    Event specifications for the AML transaction monitoring domain.
+    
+    All events follow a common envelope structure with metadata headers
+    and use Avro schema encoding with the schema registry.
+
+servers:
+  production:
+    url: redpanda.hafnium.svc.cluster.local:9092
+    protocol: kafka
+    description: Production Kafka cluster
+  development:
+    url: localhost:9092
+    protocol: kafka
+    description: Local development
+
+defaultContentType: application/json
+
+channels:
+  hf.txn.ingested.v1:
+    description: Raw transaction ingestion events
+    subscribe:
+      operationId: onTransactionIngested
+      summary: Transaction ingested
+      message:
+        $ref: '#/components/messages/TransactionIngested'
+    publish:
+      operationId: publishTransactionIngested
+      message:
+        $ref: '#/components/messages/TransactionIngested'
+
+  hf.txn.enriched.v1:
+    description: Enriched transaction events with features
+    subscribe:
+      operationId: onTransactionEnriched
+      message:
+        $ref: '#/components/messages/TransactionEnriched'
+
+  hf.txn.scored.v1:
+    description: Transaction risk scoring events
+    subscribe:
+      operationId: onTransactionScored
+      message:
+        $ref: '#/components/messages/TransactionScored'
+
+  hf.alert.raised.v1:
+    description: Alert events from transaction monitoring
+    subscribe:
+      operationId: onAlertRaised
+      message:
+        $ref: '#/components/messages/AlertRaised'
+
+  hf.alert.updated.v1:
+    description: Alert status update events
+    subscribe:
+      operationId: onAlertUpdated
+      message:
+        $ref: '#/components/messages/AlertUpdated'
+
+  hf.case.created.v1:
+    description: Case creation events
+    subscribe:
+      operationId: onCaseCreated
+      message:
+        $ref: '#/components/messages/CaseCreated'
+
+  hf.customer.verified.v1:
+    description: Customer verification completion events
+    subscribe:
+      operationId: onCustomerVerified
+      message:
+        $ref: '#/components/messages/CustomerVerified'
+
+  hf.dlq.v1:
+    description: Dead letter queue for failed events
+    subscribe:
+      operationId: onDeadLetterEvent
+      message:
+        $ref: '#/components/messages/DeadLetterEvent'
+
+components:
+  messages:
+    TransactionIngested:
+      name: TransactionIngested
+      title: Transaction Ingested
+      summary: A transaction has been ingested into the system
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        required:
+          - txn_id
+          - amount
+          - currency
+          - txn_timestamp
+        properties:
+          txn_id:
+            type: string
+            format: uuid
+          customer_id:
+            type: string
+            format: uuid
+          external_txn_id:
+            type: string
+          amount:
+            type: number
+          currency:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          txn_type:
+            type: string
+            enum: [credit, debit, transfer, payment]
+          txn_timestamp:
+            type: string
+            format: date-time
+          counterparty_id:
+            type: string
+          counterparty_name:
+            type: string
+          channel:
+            type: string
+            enum: [web, mobile, atm, branch, api, swift, ach]
+          geo_data:
+            type: object
+            properties:
+              country:
+                type: string
+              city:
+                type: string
+              ip_address:
+                type: string
+          metadata:
+            type: object
+
+    TransactionEnriched:
+      name: TransactionEnriched
+      title: Transaction Enriched
+      summary: Transaction enriched with additional features
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        properties:
+          txn_id:
+            type: string
+            format: uuid
+          customer_profile:
+            type: object
+            properties:
+              risk_tier:
+                type: string
+              days_since_onboarding:
+                type: integer
+              total_txn_count:
+                type: integer
+              avg_txn_amount:
+                type: number
+          velocity_features:
+            type: object
+            properties:
+              txn_count_1h:
+                type: integer
+              txn_count_24h:
+                type: integer
+              txn_sum_24h:
+                type: number
+              unique_counterparties_7d:
+                type: integer
+          network_features:
+            type: object
+            properties:
+              counterparty_risk_score:
+                type: number
+              shared_counterparty_count:
+                type: integer
+          enriched_at:
+            type: string
+            format: date-time
+
+    TransactionScored:
+      name: TransactionScored
+      title: Transaction Scored
+      summary: Transaction has been scored by the risk engine
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        properties:
+          txn_id:
+            type: string
+            format: uuid
+          score:
+            type: number
+            minimum: 0
+            maximum: 1
+          risk_level:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          model_version:
+            type: string
+          reasons:
+            type: array
+            items:
+              type: object
+              properties:
+                code:
+                  type: string
+                contribution:
+                  type: number
+                description:
+                  type: string
+          scored_at:
+            type: string
+            format: date-time
+
+    AlertRaised:
+      name: AlertRaised
+      title: Alert Raised
+      summary: An alert has been raised by the monitoring system
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        required:
+          - alert_id
+          - rule_id
+          - severity
+        properties:
+          alert_id:
+            type: string
+            format: uuid
+          rule_id:
+            type: string
+          rule_name:
+            type: string
+          severity:
+            type: string
+            enum: [low, medium, high, critical]
+          score:
+            type: number
+          txn_id:
+            type: string
+            format: uuid
+          customer_id:
+            type: string
+            format: uuid
+          explanation:
+            type: string
+          triggered_conditions:
+            type: array
+            items:
+              type: object
+              properties:
+                condition:
+                  type: string
+                actual_value:
+                  type: string
+                threshold:
+                  type: string
+          created_at:
+            type: string
+            format: date-time
+
+    AlertUpdated:
+      name: AlertUpdated
+      title: Alert Updated
+      summary: Alert status has been updated
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        properties:
+          alert_id:
+            type: string
+            format: uuid
+          previous_status:
+            type: string
+          new_status:
+            type: string
+            enum: [new, acknowledged, investigating, escalated, closed_true_positive, closed_false_positive]
+          updated_by:
+            type: string
+            format: uuid
+          case_id:
+            type: string
+            format: uuid
+          updated_at:
+            type: string
+            format: date-time
+
+    CaseCreated:
+      name: CaseCreated
+      title: Case Created
+      summary: An investigation case has been created
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        properties:
+          case_id:
+            type: string
+            format: uuid
+          case_number:
+            type: string
+          case_type:
+            type: string
+          priority:
+            type: string
+            enum: [low, medium, high, critical]
+          customer_id:
+            type: string
+            format: uuid
+          alert_ids:
+            type: array
+            items:
+              type: string
+              format: uuid
+          created_by:
+            type: string
+            format: uuid
+          created_at:
+            type: string
+            format: date-time
+
+    CustomerVerified:
+      name: CustomerVerified
+      title: Customer Verified
+      summary: Customer KYC verification completed
+      contentType: application/json
+      traits:
+        - $ref: '#/components/messageTraits/commonHeaders'
+      payload:
+        type: object
+        properties:
+          customer_id:
+            type: string
+            format: uuid
+          workflow_id:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum: [approved, rejected]
+          risk_tier:
+            type: string
+            enum: [low, medium, high]
+          verification_result:
+            type: object
+            properties:
+              document_verified:
+                type: boolean
+              face_matched:
+                type: boolean
+              liveness_passed:
+                type: boolean
+              screening_clear:
+                type: boolean
+          completed_at:
+            type: string
+            format: date-time
+
+    DeadLetterEvent:
+      name: DeadLetterEvent
+      title: Dead Letter Event
+      summary: Event that failed processing
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          original_topic:
+            type: string
+          original_event:
+            type: object
+          error_message:
+            type: string
+          error_type:
+            type: string
+          retry_count:
+            type: integer
+          failed_at:
+            type: string
+            format: date-time
+
+  messageTraits:
+    commonHeaders:
+      headers:
+        type: object
+        required:
+          - event_id
+          - event_type
+          - schema_version
+          - tenant_id
+          - occurred_at
+        properties:
+          event_id:
+            type: string
+            format: uuid
+            description: Unique event identifier
+          event_type:
+            type: string
+            description: Event type name
+          schema_version:
+            type: string
+            description: Schema version (semver)
+          tenant_id:
+            type: string
+            format: uuid
+            description: Tenant identifier
+          correlation_id:
+            type: string
+            format: uuid
+            description: Correlation ID for request tracing
+          causation_id:
+            type: string
+            format: uuid
+            description: ID of the event that caused this event
+          occurred_at:
+            type: string
+            format: date-time
+            description: When the event occurred

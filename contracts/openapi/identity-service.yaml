@@ -1,0 +1,478 @@
+openapi: 3.1.0
+info:
+  title: Hafnium Identity Service API
+  description: |
+    The Identity Service API manages customer onboarding, KYC workflows,
+    and document verification.
+    
+    ## Authentication
+    All endpoints require Bearer token authentication.
+    
+    ## Tenant Isolation
+    All operations are scoped to the authenticated tenant.
+  version: 1.0.0
+  contact:
+    name: Hafnium Platform Team
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: https://api.hafnium.dev/api/v1
+    description: Production
+  - url: http://localhost:8080/api/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Customers
+    description: Customer management
+  - name: KYC
+    description: KYC workflow operations
+  - name: Documents
+    description: Document upload and verification
+
+paths:
+  /customers:
+    post:
+      operationId: createCustomer
+      summary: Create a new customer
+      tags:
+        - Customers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomerRequest'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    
+    get:
+      operationId: listCustomers
+      summary: List customers
+      tags:
+        - Customers
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, documents_required, in_review, verified, rejected]
+        - name: risk_tier
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Customer list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerListResponse'
+
+  /customers/{customer_id}:
+    get:
+      operationId: getCustomer
+      summary: Get customer by ID
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    
+    patch:
+      operationId: updateCustomer
+      summary: Update customer
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCustomerRequest'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+
+  /customers/{customer_id}/kyc:
+    post:
+      operationId: initiateKyc
+      summary: Initiate KYC verification
+      tags:
+        - KYC
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KycInitiateRequest'
+      responses:
+        '202':
+          description: KYC workflow initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycWorkflow'
+    
+    get:
+      operationId: getKycStatus
+      summary: Get current KYC status
+      tags:
+        - KYC
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: KYC status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KycWorkflow'
+
+  /customers/{customer_id}/documents:
+    post:
+      operationId: uploadDocument
+      summary: Upload identity document
+      tags:
+        - Documents
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document_type
+                - front
+              properties:
+                document_type:
+                  type: string
+                  enum: [passport, national_id, drivers_license, residence_permit]
+                front:
+                  type: string
+                  format: binary
+                back:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+    
+    get:
+      operationId: listDocuments
+      summary: List customer documents
+      tags:
+        - Documents
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Document list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+
+  /customers/{customer_id}/screening:
+    post:
+      operationId: initiateScreening
+      summary: Initiate sanctions/PEP screening
+      tags:
+        - KYC
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '202':
+          description: Screening initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScreeningRequest'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CustomerId:
+      name: customer_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    CreateCustomerRequest:
+      type: object
+      required:
+        - external_id
+      properties:
+        external_id:
+          type: string
+          description: Client-provided customer identifier
+        customer_type:
+          type: string
+          enum: [individual, business]
+          default: individual
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, documents_required, in_review, verified, rejected]
+        risk_tier:
+          type: string
+          enum: [low, medium, high]
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Customer:
+      type: object
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        external_id:
+          type: string
+        customer_type:
+          type: string
+          enum: [individual, business]
+        status:
+          type: string
+          enum: [pending, documents_required, in_review, verified, rejected]
+        risk_tier:
+          type: string
+          enum: [low, medium, high]
+        metadata:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CustomerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        pagination:
+          $ref: '#/components/schemas/CursorPagination'
+
+    CursorPagination:
+      type: object
+      properties:
+        next_cursor:
+          type: string
+        has_more:
+          type: boolean
+
+    KycInitiateRequest:
+      type: object
+      properties:
+        workflow_type:
+          type: string
+          enum: [standard, enhanced, simplified]
+          default: standard
+        skip_screening:
+          type: boolean
+          default: false
+
+    KycWorkflow:
+      type: object
+      properties:
+        workflow_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        workflow_type:
+          type: string
+        status:
+          type: string
+          enum: [initiated, documents_pending, documents_submitted, in_review, approved, rejected]
+        current_step:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowStep'
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    WorkflowStep:
+      type: object
+      properties:
+        step:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed, skipped]
+        completed_at:
+          type: string
+          format: date-time
+
+    Document:
+      type: object
+      properties:
+        document_id:
+          type: string
+          format: uuid
+        document_type:
+          type: string
+          enum: [passport, national_id, drivers_license, residence_permit]
+        status:
+          type: string
+          enum: [uploaded, processing, verified, rejected]
+        extracted_data:
+          type: object
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+            date_of_birth:
+              type: string
+              format: date
+            document_number:
+              type: string
+            expiry_date:
+              type: string
+              format: date
+            country:
+              type: string
+        verification_result:
+          type: object
+          properties:
+            is_authentic:
+              type: boolean
+            fraud_score:
+              type: number
+            checks:
+              type: array
+              items:
+                type: object
+                properties:
+                  check:
+                    type: string
+                  passed:
+                    type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    ScreeningRequest:
+      type: object
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        match_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'

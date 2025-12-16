@@ -1,0 +1,79 @@
+# Prometheus Configuration for Hafnium
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'hafnium-local'
+    env: 'development'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - /etc/prometheus/rules/*.yaml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Risk Engine
+  - job_name: 'risk-engine'
+    static_configs:
+      - targets: ['risk-engine:8000']
+    metrics_path: /metrics
+
+  # Backend Java
+  - job_name: 'backend-java'
+    static_configs:
+      - targets: ['backend-java:8080']
+    metrics_path: /actuator/prometheus
+
+  # AI Inference
+  - job_name: 'ai-inference'
+    static_configs:
+      - targets: ['ai-inference:8000']
+    metrics_path: /metrics
+
+  # Stream Processor
+  - job_name: 'stream-processor'
+    static_configs:
+      - targets: ['stream-processor:8080']
+    metrics_path: /metrics
+
+  # Redpanda
+  - job_name: 'redpanda'
+    static_configs:
+      - targets: ['redpanda:9644']
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # PostgreSQL (requires postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Keycloak
+  - job_name: 'keycloak'
+    static_configs:
+      - targets: ['keycloak:8080']
+    metrics_path: /metrics
+
+  # OPA
+  - job_name: 'opa'
+    static_configs:
+      - targets: ['opa:8181']
+    metrics_path: /metrics
+
+  # Envoy (API Gateway)
+  - job_name: 'envoy'
+    static_configs:
+      - targets: ['api-gateway:9901']
+    metrics_path: /stats/prometheus

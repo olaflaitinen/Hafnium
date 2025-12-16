@@ -1,0 +1,468 @@
+openapi: 3.1.0
+info:
+  title: Hafnium Risk Engine API
+  description: |
+    The Risk Engine API provides unified risk scoring with explainability.
+    
+    ## Authentication
+    All endpoints require Bearer token authentication via OAuth 2.0.
+    
+    ## Rate Limits
+    - Standard: 1000 requests/minute
+    - Burst: 100 requests/second
+    
+    ## Error Handling
+    All errors follow RFC 7807 Problem Details format.
+  version: 1.0.0
+  contact:
+    name: Hafnium Platform Team
+    email: platform@hafnium.dev
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: https://api.hafnium.dev/api/v1
+    description: Production
+  - url: https://api.staging.hafnium.dev/api/v1
+    description: Staging
+  - url: http://localhost:8000/api/v1
+    description: Local Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Risk Scoring
+    description: Compute and retrieve risk scores
+  - name: Models
+    description: Model management and metadata
+
+paths:
+  /risk/score:
+    post:
+      operationId: computeRiskScore
+      summary: Compute risk score for an entity
+      description: |
+        Computes a unified risk score for the specified entity by aggregating
+        signals from multiple sources (identity, transaction, security).
+        
+        The response includes:
+        - Numeric score (0-1)
+        - Risk level classification
+        - Top contributing factors
+        - Recommended policy actions
+      tags:
+        - Risk Scoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskScoreRequest'
+            examples:
+              customerScore:
+                summary: Score a customer
+                value:
+                  entity_type: customer
+                  entity_id: cust_12345
+                  context:
+                    use_case: transaction_approval
+                    amount: 5000.00
+                    currency: USD
+      responses:
+        '200':
+          description: Risk score computed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskScoreResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /risk/score/{entity_type}/{entity_id}:
+    get:
+      operationId: getRiskScore
+      summary: Retrieve cached risk score
+      description: |
+        Retrieves the most recently computed risk score for an entity.
+        Returns 404 if no score has been computed.
+      tags:
+        - Risk Scoring
+      parameters:
+        - name: entity_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [customer, transaction, session]
+        - name: entity_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Risk score retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskScoreResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /risk/score/batch:
+    post:
+      operationId: computeRiskScoreBatch
+      summary: Compute risk scores for multiple entities
+      description: |
+        Computes risk scores for up to 100 entities in a single request.
+        Useful for batch processing scenarios.
+      tags:
+        - Risk Scoring
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requests
+              properties:
+                requests:
+                  type: array
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/RiskScoreRequest'
+      responses:
+        '200':
+          description: Batch scores computed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchRiskScoreResponse'
+
+  /risk/models:
+    get:
+      operationId: listModels
+      summary: List available risk models
+      tags:
+        - Models
+      responses:
+        '200':
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ModelInfo'
+
+  /risk/models/{model_id}/card:
+    get:
+      operationId: getModelCard
+      summary: Get model card for a specific model
+      description: |
+        Returns the model card containing model metadata, performance metrics,
+        limitations, and intended use cases.
+      tags:
+        - Models
+      parameters:
+        - name: model_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Model card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelCard'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RiskScoreRequest:
+      type: object
+      required:
+        - entity_type
+        - entity_id
+      properties:
+        entity_type:
+          type: string
+          enum: [customer, transaction, session]
+          description: Type of entity to score
+        entity_id:
+          type: string
+          description: Unique identifier of the entity
+        context:
+          $ref: '#/components/schemas/RiskScoreContext'
+        features:
+          type: object
+          description: Pre-computed features (optional)
+          additionalProperties:
+            type: number
+
+    RiskScoreContext:
+      type: object
+      description: Additional context for scoring
+      properties:
+        use_case:
+          type: string
+          description: Use case for the scoring request
+        amount:
+          type: number
+          description: Transaction amount if applicable
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+
+    RiskScoreResponse:
+      type: object
+      required:
+        - score
+        - risk_level
+        - reasons
+        - model_version
+        - computed_at
+      properties:
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Risk score between 0 (low risk) and 1 (high risk)
+        risk_level:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Risk level classification
+        reasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReasonCode'
+          description: Top contributing factors
+        policy_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyAction'
+          description: Recommended actions based on risk level
+        model_version:
+          type: string
+          description: Model version used for scoring
+        computed_at:
+          type: string
+          format: date-time
+          description: Timestamp when score was computed
+
+    ReasonCode:
+      type: object
+      required:
+        - code
+        - contribution
+        - description
+      properties:
+        code:
+          type: string
+          description: Unique reason code
+        contribution:
+          type: number
+          description: Contribution to the score (positive increases risk)
+        description:
+          type: string
+          description: Human-readable explanation
+
+    PolicyAction:
+      type: object
+      required:
+        - action
+        - priority
+      properties:
+        action:
+          type: string
+          enum: [STEP_UP_AUTH, MANUAL_REVIEW, BLOCK, ALLOW, FLAG]
+          description: Recommended action
+        priority:
+          type: integer
+          minimum: 1
+          description: Action priority (1 = highest)
+
+    BatchRiskScoreResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchRiskScoreResult'
+
+    BatchRiskScoreResult:
+      type: object
+      properties:
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        result:
+          $ref: '#/components/schemas/RiskScoreResponse'
+        error:
+          $ref: '#/components/schemas/ProblemDetail'
+
+    ModelInfo:
+      type: object
+      properties:
+        model_id:
+          type: string
+        model_name:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [active, deprecated, development]
+        created_at:
+          type: string
+          format: date-time
+
+    ModelCard:
+      type: object
+      properties:
+        model_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        intended_use:
+          type: string
+        limitations:
+          type: array
+          items:
+            type: string
+        metrics:
+          type: object
+          properties:
+            auc_roc:
+              type: number
+            auc_pr:
+              type: number
+            ece:
+              type: number
+        training_data:
+          type: object
+          properties:
+            description:
+              type: string
+            size:
+              type: integer
+            date_range:
+              type: string
+
+    ProblemDetail:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        trace_id:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+          example:
+            type: https://hafnium.dev/errors/validation-failed
+            title: Validation Failed
+            status: 400
+            detail: The request body contains invalid fields
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    UnprocessableEntity:
+      description: Semantic validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'

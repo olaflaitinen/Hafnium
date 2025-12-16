@@ -1,0 +1,173 @@
+# Envoy API Gateway Configuration
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+
+static_resources:
+  listeners:
+    - name: http_listener
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: AUTO
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: backend
+                      domains: ["*"]
+                      routes:
+                        # Risk Engine routes
+                        - match:
+                            prefix: "/api/v1/risk"
+                          route:
+                            cluster: risk_engine
+                            timeout: 30s
+                        
+                        # Identity/Backend routes  
+                        - match:
+                            prefix: "/api/v1"
+                          route:
+                            cluster: backend_java
+                            timeout: 30s
+                        
+                        # Frontend routes
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: frontend
+                            timeout: 10s
+                
+                http_filters:
+                  # Rate limiting
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: http_local_rate_limiter
+                      token_bucket:
+                        max_tokens: 1000
+                        tokens_per_fill: 100
+                        fill_interval: 1s
+                      filter_enabled:
+                        runtime_key: local_rate_limit_enabled
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+                      filter_enforced:
+                        runtime_key: local_rate_limit_enforced
+                        default_value:
+                          numerator: 100
+                          denominator: HUNDRED
+                  
+                  # CORS
+                  - name: envoy.filters.http.cors
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+                  
+                  # JWT Authentication
+                  - name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        keycloak:
+                          issuer: http://keycloak:8080/realms/hafnium
+                          forward: true
+                          remote_jwks:
+                            http_uri:
+                              uri: http://keycloak:8080/realms/hafnium/protocol/openid-connect/certs
+                              cluster: keycloak
+                              timeout: 5s
+                            cache_duration:
+                              seconds: 600
+                      rules:
+                        - match:
+                            prefix: /api/v1
+                          requires:
+                            provider_name: keycloak
+                        - match:
+                            prefix: /
+                  
+                  # Router (must be last)
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: risk_engine
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: risk_engine
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: risk-engine
+                      port_value: 8000
+      health_checks:
+        - timeout: 5s
+          interval: 30s
+          unhealthy_threshold: 3
+          healthy_threshold: 1
+          http_health_check:
+            path: /health
+
+    - name: backend_java
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: backend_java
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: backend-java
+                      port_value: 8080
+      health_checks:
+        - timeout: 5s
+          interval: 30s
+          unhealthy_threshold: 3
+          healthy_threshold: 1
+          http_health_check:
+            path: /actuator/health
+
+    - name: frontend
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: frontend
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: frontend
+                      port_value: 3000
+
+    - name: keycloak
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: keycloak
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: keycloak
+                      port_value: 8080

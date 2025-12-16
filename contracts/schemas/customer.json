@@ -1,0 +1,183 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://hafnium.dev/schemas/customer.json",
+    "title": "Customer",
+    "description": "Customer entity schema",
+    "type": "object",
+    "required": [
+        "customer_id",
+        "external_id",
+        "customer_type",
+        "status",
+        "created_at"
+    ],
+    "properties": {
+        "customer_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique customer identifier"
+        },
+        "external_id": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Client-provided customer identifier"
+        },
+        "customer_type": {
+            "type": "string",
+            "enum": [
+                "individual",
+                "business"
+            ],
+            "description": "Type of customer"
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "documents_required",
+                "in_review",
+                "verified",
+                "rejected"
+            ],
+            "description": "Current customer status"
+        },
+        "risk_tier": {
+            "type": "string",
+            "enum": [
+                "low",
+                "medium",
+                "high"
+            ],
+            "description": "Customer risk classification"
+        },
+        "individual": {
+            "$ref": "#/$defs/individual"
+        },
+        "business": {
+            "$ref": "#/$defs/business"
+        },
+        "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Additional metadata"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "$defs": {
+        "individual": {
+            "type": "object",
+            "description": "Individual customer details",
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "date_of_birth": {
+                    "type": "string",
+                    "format": "date"
+                },
+                "nationality": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$",
+                    "description": "ISO 3166-1 alpha-2 country code"
+                },
+                "tax_id": {
+                    "type": "string"
+                },
+                "address": {
+                    "$ref": "#/$defs/address"
+                }
+            }
+        },
+        "business": {
+            "type": "object",
+            "description": "Business customer details",
+            "properties": {
+                "legal_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "trading_name": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "registration_number": {
+                    "type": "string"
+                },
+                "registration_country": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                },
+                "incorporation_date": {
+                    "type": "string",
+                    "format": "date"
+                },
+                "industry_code": {
+                    "type": "string",
+                    "description": "NACE/SIC industry code"
+                },
+                "address": {
+                    "$ref": "#/$defs/address"
+                },
+                "beneficial_owners": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/beneficialOwner"
+                    }
+                }
+            }
+        },
+        "address": {
+            "type": "object",
+            "properties": {
+                "street": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                }
+            }
+        },
+        "beneficialOwner": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "ownership_percentage": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                },
+                "nationality": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}$"
+                },
+                "is_pep": {
+                    "type": "boolean"
+                }
+            }
+        }
+    }
+}
