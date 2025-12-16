@@ -1,0 +1,44 @@
+# CODEOWNERS
+# This file defines code owners for different parts of the repository.
+# Code owners are automatically requested for review when a pull request
+# modifies files they own.
+#
+# Format: <pattern> <owner1> <owner2> ...
+# Owners must have write access to the repository.
+
+# Default owners for everything in the repo
+*                               @olaflaitinen
+
+# Documentation
+/docs/                          @olaflaitinen
+*.md                            @olaflaitinen
+
+# Contracts (API specifications)
+/contracts/                     @olaflaitinen
+
+# Infrastructure
+/infra/                         @olaflaitinen
+
+# AI Platform
+/services/ai-platform/          @olaflaitinen
+
+# Risk Engine
+/services/risk-engine/          @olaflaitinen
+
+# Stream Processor
+/services/stream-processor/     @olaflaitinen
+
+# Frontend
+/services/frontend-react/       @olaflaitinen
+
+# Backend
+/services/backend-java/         @olaflaitinen
+
+# Shared Libraries
+/libs/                          @olaflaitinen
+
+# Security-sensitive files
+/SECURITY.md                    @olaflaitinen
+/.github/workflows/             @olaflaitinen
+/platform/policies/             @olaflaitinen
+/platform/vault/                @olaflaitinen

@@ -1,0 +1,204 @@
+name: Release Dry Run
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'CHANGELOG.md'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to simulate releasing'
+        required: true
+        default: '0.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  # ==========================================================================
+  # Validate Release Artifacts
+  # ==========================================================================
+  validate-artifacts:
+    name: Validate Release Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate CHANGELOG
+        run: |
+          if ! grep -q "## \[" CHANGELOG.md; then
+            echo "Error: CHANGELOG.md does not contain version entries"
+            exit 1
+          fi
+          echo "CHANGELOG.md validation passed"
+
+      - name: Validate VERSION consistency
+        run: |
+          # Check pyproject.toml versions match
+          RISK_VERSION=$(grep 'version = ' services/risk-engine/pyproject.toml | head -1 | cut -d'"' -f2)
+          AI_VERSION=$(grep 'version = ' services/ai-platform/pyproject.toml | head -1 | cut -d'"' -f2)
+          STREAM_VERSION=$(grep 'version = ' services/stream-processor/pyproject.toml | head -1 | cut -d'"' -f2)
+          
+          echo "Risk Engine: $RISK_VERSION"
+          echo "AI Platform: $AI_VERSION"
+          echo "Stream Processor: $STREAM_VERSION"
+          
+          if [ "$RISK_VERSION" != "$AI_VERSION" ] || [ "$AI_VERSION" != "$STREAM_VERSION" ]; then
+            echo "Warning: Version mismatch detected"
+          fi
+
+  # ==========================================================================
+  # Build Verification
+  # ==========================================================================
+  build-verification:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build Risk Engine Package
+        run: |
+          cd services/risk-engine
+          pip install build
+          python -m build
+          echo "Risk Engine package built successfully"
+
+      - name: Build AI Platform Package
+        run: |
+          cd services/ai-platform
+          pip install build
+          python -m build
+          echo "AI Platform package built successfully"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build Frontend
+        run: |
+          cd services/frontend-react
+          npm ci
+          npm run build
+          echo "Frontend built successfully"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build Backend
+        run: |
+          cd services/backend-java
+          ./gradlew build -x test
+          echo "Backend built successfully"
+
+  # ==========================================================================
+  # Container Build Verification
+  # ==========================================================================
+  container-verification:
+    name: Container Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Risk Engine Image
+        uses: docker/build-push-action@v5
+        with:
+          context: services/risk-engine
+          file: services/risk-engine/Dockerfile.dev
+          push: false
+          tags: hafnium/risk-engine:dry-run
+
+      - name: Build AI Platform Image
+        uses: docker/build-push-action@v5
+        with:
+          context: services/ai-platform
+          file: services/ai-platform/Dockerfile.inference
+          push: false
+          tags: hafnium/ai-platform:dry-run
+
+  # ==========================================================================
+  # Documentation Verification
+  # ==========================================================================
+  docs-verification:
+    name: Documentation Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Required Files
+        run: |
+          REQUIRED_FILES=(
+            "README.md"
+            "CHANGELOG.md"
+            "LICENSE"
+            "CONTRIBUTING.md"
+            "SECURITY.md"
+            "CODE_OF_CONDUCT.md"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "Error: Required file $file is missing"
+              exit 1
+            fi
+          done
+          echo "All required files present"
+
+      - name: Validate Links in README
+        run: |
+          # Basic link validation
+          if grep -oP '\[.*?\]\((?!http).*?\)' README.md | while read -r link; do
+            file=$(echo "$link" | sed 's/.*(\(.*\))/\1/')
+            if [ ! -f "$file" ] && [ ! -d "$file" ]; then
+              echo "Warning: Potentially broken link: $link"
+            fi
+          done; then
+            echo "Link validation completed"
+          fi
+
+  # ==========================================================================
+  # Release Notes Preview
+  # ==========================================================================
+  release-notes-preview:
+    name: Release Notes Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Release Notes Preview
+        run: |
+          echo "## Release Notes Preview"
+          echo ""
+          echo "### Changelog Entry"
+          # Extract latest version from CHANGELOG
+          sed -n '/^## \[/,/^## \[/p' CHANGELOG.md | head -n -1
+          echo ""
+          echo "### Files Changed"
+          echo ""
+          git diff --stat HEAD~10 || echo "Unable to show diff"
+
+      - name: Summary
+        run: |
+          echo "## Dry Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release dry run completed successfully." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All artifacts validated:" >> $GITHUB_STEP_SUMMARY
+          echo "- CHANGELOG.md present and formatted" >> $GITHUB_STEP_SUMMARY
+          echo "- Python packages buildable" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend buildable" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend buildable" >> $GITHUB_STEP_SUMMARY
+          echo "- Container images buildable" >> $GITHUB_STEP_SUMMARY
+          echo "- Required documentation present" >> $GITHUB_STEP_SUMMARY

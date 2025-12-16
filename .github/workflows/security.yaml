@@ -1,0 +1,177 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # ==========================================================================
+  # Dependency Vulnerability Scanning
+  # ==========================================================================
+  dependency-scan:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Safety
+        run: pip install safety
+
+      - name: Scan Risk Engine Dependencies
+        run: |
+          cd services/risk-engine
+          pip install -e .
+          safety check --output json > safety-report.json || true
+        continue-on-error: true
+
+      - name: Scan AI Platform Dependencies
+        run: |
+          cd services/ai-platform
+          pip install -e .
+          safety check --output json >> safety-report.json || true
+        continue-on-error: true
+
+      - name: Upload Safety Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-report
+          path: services/*/safety-report.json
+
+  # ==========================================================================
+  # Container Image Scanning
+  # ==========================================================================
+  container-scan:
+    name: Container Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ==========================================================================
+  # Secret Scanning
+  # ==========================================================================
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: false
+
+  # ==========================================================================
+  # Static Application Security Testing (SAST)
+  # ==========================================================================
+  sast:
+    name: SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java, python, javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java,python,javascript"
+
+  # ==========================================================================
+  # Infrastructure as Code Scanning
+  # ==========================================================================
+  iac-scan:
+    name: IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: dockerfile,kubernetes,helm
+          soft_fail: true
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+        continue-on-error: true
+
+  # ==========================================================================
+  # License Compliance
+  # ==========================================================================
+  license-scan:
+    name: License Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Check Python Licenses
+        run: |
+          cd services/risk-engine
+          pip install -e .
+          pip-licenses --format=csv --output-file=licenses.csv
+          # Check for prohibited licenses
+          if grep -E "GPL|AGPL|SSPL" licenses.csv; then
+            echo "Prohibited license detected!"
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check Node.js Licenses
+        run: |
+          cd services/frontend-react
+          npm ci
+          npx license-checker --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;MPL-2.0"
