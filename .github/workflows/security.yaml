@@ -108,8 +108,7 @@ jobs:
       - name: Build Java Backend
         run: |
           cd services/backend-java
-          chmod +x gradlew
-          ./gradlew clean build -x test
+          gradle clean build -x test
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
