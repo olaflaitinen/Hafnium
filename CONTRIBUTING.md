@@ -38,11 +38,14 @@ Before contributing, ensure you have the following installed:
 
 1. Fork the repository on GitHub
 2. Clone your fork locally:
+
    ```bash
    git clone git@github.com:YOUR_USERNAME/hafnium.git
    cd hafnium
    ```
+
 3. Add the upstream remote:
+
    ```bash
    git remote add upstream git@github.com:olaflaitinen/hafnium.git
    ```
@@ -287,12 +290,14 @@ Fixes #456
 ### Before Submitting
 
 1. Ensure your branch is up to date with `main`:
+
    ```bash
    git fetch upstream
    git rebase upstream/main
    ```
 
 2. Run all checks locally:
+
    ```bash
    make lint
    make test

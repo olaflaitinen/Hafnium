@@ -30,6 +30,7 @@ Users must consult with qualified legal, financial, and compliance professionals
 While the Software includes features designed to support compliance with various regulations (including but not limited to AML, KYC, GDPR, and PCI DSS), **the responsibility for achieving and maintaining regulatory compliance rests solely with the user organization**.
 
 The Software:
+
 - Does not guarantee regulatory compliance
 - Does not substitute for professional compliance review
 - Does not provide certification or attestation services

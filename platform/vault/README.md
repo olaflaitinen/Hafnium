@@ -5,6 +5,7 @@ This directory contains HashiCorp Vault configuration for the Hafnium platform.
 ## Overview
 
 Vault provides secrets management for:
+
 - Database credentials
 - API keys
 - Encryption keys
@@ -19,6 +20,7 @@ docker compose up vault -d
 ```
 
 Development mode:
+
 - Root token: `dev-root-token`
 - Unsealed automatically
 - In-memory storage (data lost on restart)

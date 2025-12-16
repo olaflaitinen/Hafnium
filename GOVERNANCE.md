@@ -86,6 +86,7 @@ Contributor → Core Contributor → Maintainer
 ### Becoming a Core Contributor
 
 Requirements:
+
 - Minimum 3 months of active contribution
 - At least 10 merged pull requests
 - Demonstrated understanding of project architecture
@@ -94,6 +95,7 @@ Requirements:
 ### Becoming a Maintainer
 
 Requirements:
+
 - Minimum 6 months as Core Contributor
 - Demonstrated leadership in project activities
 - Security clearance (if applicable)

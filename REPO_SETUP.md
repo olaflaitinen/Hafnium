@@ -161,6 +161,7 @@ make db-migrate
 The development environment uses relaxed security settings for convenience. **Do not use development configurations in production.**
 
 Specific development-only settings:
+
 - Vault runs in development mode
 - TLS is disabled for local services
 - Default passwords are used

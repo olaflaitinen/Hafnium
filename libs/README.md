@@ -19,6 +19,7 @@ libs/
 ### hafnium-common
 
 Shared utilities for Python services:
+
 - Logging configuration
 - Metrics utilities
 - Common data models
@@ -29,6 +30,7 @@ Shared utilities for Python services:
 ### hafnium-common
 
 Shared utilities for Java services:
+
 - Exception handling
 - DTO base classes
 - API response models
@@ -38,6 +40,7 @@ Shared utilities for Java services:
 ### hafnium-common
 
 Shared utilities for frontend:
+
 - API client
 - Authentication utilities
 - Common types

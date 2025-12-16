@@ -104,6 +104,7 @@ SBOMs are generated automatically on each release using:
 ### Storage
 
 SBOMs are stored in:
+
 - `sbom/` directory in release artifacts
 - GitHub Release attachments
 
