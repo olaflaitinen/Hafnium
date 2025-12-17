@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hafnium-config
+  namespace: hafnium
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  LOG_LEVEL: "INFO"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "redpanda:9092"
+  KEYCLOAK_AUTH_SERVER_URL: "http://keycloak:8080"
+  OPA_URL: "http://opa:8181"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
+  OTEL_SERVICE_NAME: "hafnium"

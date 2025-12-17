@@ -1,0 +1,92 @@
+name: Container Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - '**/Dockerfile'
+      - 'services/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - '**/Dockerfile'
+      - 'services/**'
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  trivy-scan:
+    name: Trivy Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: identity-service
+            path: services/backend-java/identity-service
+          - service: screening-service
+            path: services/backend-java/screening-service
+          - service: monitoring-service
+            path: services/backend-java/monitoring-service
+          - service: case-service
+            path: services/backend-java/case-service
+          - service: vault-service
+            path: services/backend-java/vault-service
+          - service: risk-engine-service
+            path: services/backend-java/risk-engine-service
+          - service: signals-service
+            path: services/backend-java/signals-service
+          - service: api-facade
+            path: services/backend-java/api-facade
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Dockerfile exists
+        id: check
+        run: |
+          if [ -f "${{ matrix.path }}/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build image
+        if: steps.check.outputs.exists == 'true'
+        run: docker build -t ${{ matrix.service }}:scan ${{ matrix.path }}
+
+      - name: Run Trivy vulnerability scanner
+        if: steps.check.outputs.exists == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.service }}:scan'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy scan results
+        if: steps.check.outputs.exists == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'container-${{ matrix.service }}'
+
+  dockerfile-lint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          failure-threshold: error

@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hafnium
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - services/identity-service.yaml
+  - services/screening-service.yaml
+  - services/monitoring-service.yaml
+  - services/case-service.yaml
+  - services/vault-service.yaml
+  - services/risk-engine-service.yaml
+  - services/signals-service.yaml
+  - services/api-facade.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: hafnium
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: hafnium/identity-service
+    newName: ghcr.io/olaflaitinen/hafnium/identity-service
+    newTag: latest
+  - name: hafnium/screening-service
+    newName: ghcr.io/olaflaitinen/hafnium/screening-service
+    newTag: latest
+  - name: hafnium/monitoring-service
+    newName: ghcr.io/olaflaitinen/hafnium/monitoring-service
+    newTag: latest
+  - name: hafnium/case-service
+    newName: ghcr.io/olaflaitinen/hafnium/case-service
+    newTag: latest
+  - name: hafnium/vault-service
+    newName: ghcr.io/olaflaitinen/hafnium/vault-service
+    newTag: latest
+  - name: hafnium/risk-engine-service
+    newName: ghcr.io/olaflaitinen/hafnium/risk-engine-service
+    newTag: latest
+  - name: hafnium/signals-service
+    newName: ghcr.io/olaflaitinen/hafnium/signals-service
+    newTag: latest
+  - name: hafnium/api-facade
+    newName: ghcr.io/olaflaitinen/hafnium/api-facade
+    newTag: latest

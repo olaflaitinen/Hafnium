@@ -2,15 +2,18 @@ package dev.hafnium.cases;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
- * Case Service application.
+ * Case Service Application.
  *
  * <p>
- * Manages investigation cases with state machine workflow and evidence
- * attachments.
+ * Provides case management, evidence handling, and investigation workflows for
+ * the Hafnium
+ * compliance platform.
  */
 @SpringBootApplication
+@ComponentScan(basePackages = { "dev.hafnium.cases", "dev.hafnium.common" })
 public class CaseServiceApplication {
 
     public static void main(String[] args) {

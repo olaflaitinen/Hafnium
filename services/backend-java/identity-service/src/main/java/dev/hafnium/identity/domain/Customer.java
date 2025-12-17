@@ -1,27 +1,33 @@
 package dev.hafnium.identity.domain;
 
-import jakarta.persistence.*;
-import java.time.Instant;
+import dev.hafnium.common.model.domain.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import java.util.Map;
 import java.util.UUID;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
- * Customer entity representing a client's customer in the platform.
+ * Customer domain entity.
+ *
+ * <p>
+ * Represents a customer in the KYC workflow. Customers may be individuals or
+ * businesses
+ * undergoing identity verification.
  */
 @Entity
-@Table(name = "customers", schema = "identity")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class Customer {
+@Table(name = "customers")
+public class Customer extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @Column(name = "customer_id")
+    private UUID customerId;
 
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
@@ -31,45 +37,111 @@ public class Customer {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "customer_type", nullable = false)
-    @Builder.Default
     private CustomerType customerType = CustomerType.INDIVIDUAL;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
+    @Column(name = "status", nullable = false)
     private CustomerStatus status = CustomerStatus.PENDING;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "risk_tier")
     private RiskTier riskTier;
 
-    @Column(columnDefinition = "jsonb")
-    private String metadata;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb")
+    private Map<String, Object> metadata;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    @Version
+    @Column(name = "version")
+    private Long version;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    @Column(name = "deleted_at")
-    private Instant deletedAt;
-
-    public boolean isDeleted() {
-        return deletedAt != null;
+    public Customer() {
+        this.customerId = UUID.randomUUID();
     }
 
-    public void softDelete() {
-        this.deletedAt = Instant.now();
+    public Customer(UUID tenantId, String externalId) {
+        this();
+        this.tenantId = tenantId;
+        this.externalId = externalId;
     }
 
+    // Getters and setters
+
+    public UUID getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(UUID customerId) {
+        this.customerId = customerId;
+    }
+
+    @Override
+    public UUID getTenantId() {
+        return tenantId;
+    }
+
+    @Override
+    public void setTenantId(UUID tenantId) {
+        this.tenantId = tenantId;
+    }
+
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
+    }
+
+    public CustomerType getCustomerType() {
+        return customerType;
+    }
+
+    public void setCustomerType(CustomerType customerType) {
+        this.customerType = customerType;
+    }
+
+    public CustomerStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CustomerStatus status) {
+        this.status = status;
+    }
+
+    public RiskTier getRiskTier() {
+        return riskTier;
+    }
+
+    public void setRiskTier(RiskTier riskTier) {
+        this.riskTier = riskTier;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
+    @Override
+    public Long getVersion() {
+        return version;
+    }
+
+    @Override
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+
+    /** Customer types. */
     public enum CustomerType {
         INDIVIDUAL,
         BUSINESS
     }
 
+    /** Customer verification statuses. */
     public enum CustomerStatus {
         PENDING,
         DOCUMENTS_REQUIRED,
@@ -78,6 +150,7 @@ public class Customer {
         REJECTED
     }
 
+    /** Customer risk tiers. */
     public enum RiskTier {
         LOW,
         MEDIUM,

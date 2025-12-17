@@ -1,89 +1,164 @@
 package dev.hafnium.screening.domain;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
- * Screening match result.
+ * Screening match domain entity.
+ *
+ * <p>
+ * Represents a match result from screening against a sanctions or PEP list.
  */
 @Entity
-@Table(name = "screening_matches", schema = "screening")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "screening_matches")
 public class ScreeningMatch {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-
-    @Column(name = "tenant_id", nullable = false)
-    private UUID tenantId;
+    @Column(name = "match_id")
+    private UUID matchId;
 
     @Column(name = "request_id", nullable = false)
     private UUID requestId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "entity_id")
-    private SanctionsEntity entity;
-
-    @Column(name = "query_name", nullable = false, length = 500)
-    private String queryName;
-
-    @Column(name = "matched_name", nullable = false, length = 500)
-    private String matchedName;
+    @Column(name = "list_name", nullable = false)
+    private String listName;
 
     @Column(name = "match_score", nullable = false, precision = 5, scale = 4)
     private BigDecimal matchScore;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "match_type", nullable = false)
-    private MatchType matchType;
+    @Column(name = "matched_name")
+    private String matchedName;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "matched_data", columnDefinition = "jsonb")
+    private Map<String, Object> matchedData;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
-    private MatchStatus status = MatchStatus.PENDING_REVIEW;
+    @Column(name = "disposition")
+    private MatchDisposition disposition = MatchDisposition.PENDING;
 
-    @Column(name = "resolved_by")
-    private UUID resolvedBy;
+    @Column(name = "reviewed_by")
+    private UUID reviewedBy;
 
-    @Enumerated(EnumType.STRING)
-    private Resolution resolution;
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
 
-    @Column(name = "resolution_notes", columnDefinition = "text")
-    private String resolutionNotes;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Column(name = "resolved_at")
-    private Instant resolvedAt;
-
-    public enum MatchType {
-        EXACT,
-        FUZZY,
-        PHONETIC,
-        ALIAS
+    public ScreeningMatch() {
+        this.matchId = UUID.randomUUID();
+        this.createdAt = Instant.now();
     }
 
-    public enum MatchStatus {
-        PENDING_REVIEW,
-        CONFIRMED,
+    public ScreeningMatch(
+            UUID requestId, String listName, BigDecimal matchScore, String matchedName,
+            Map<String, Object> matchedData) {
+        this();
+        this.requestId = requestId;
+        this.listName = listName;
+        this.matchScore = matchScore;
+        this.matchedName = matchedName;
+        this.matchedData = matchedData;
+    }
+
+    // Getters and setters
+
+    public UUID getMatchId() {
+        return matchId;
+    }
+
+    public void setMatchId(UUID matchId) {
+        this.matchId = matchId;
+    }
+
+    public UUID getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(UUID requestId) {
+        this.requestId = requestId;
+    }
+
+    public String getListName() {
+        return listName;
+    }
+
+    public void setListName(String listName) {
+        this.listName = listName;
+    }
+
+    public BigDecimal getMatchScore() {
+        return matchScore;
+    }
+
+    public void setMatchScore(BigDecimal matchScore) {
+        this.matchScore = matchScore;
+    }
+
+    public String getMatchedName() {
+        return matchedName;
+    }
+
+    public void setMatchedName(String matchedName) {
+        this.matchedName = matchedName;
+    }
+
+    public Map<String, Object> getMatchedData() {
+        return matchedData;
+    }
+
+    public void setMatchedData(Map<String, Object> matchedData) {
+        this.matchedData = matchedData;
+    }
+
+    public MatchDisposition getDisposition() {
+        return disposition;
+    }
+
+    public void setDisposition(MatchDisposition disposition) {
+        this.disposition = disposition;
+    }
+
+    public UUID getReviewedBy() {
+        return reviewedBy;
+    }
+
+    public void setReviewedBy(UUID reviewedBy) {
+        this.reviewedBy = reviewedBy;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    /** Match disposition statuses. */
+    public enum MatchDisposition {
+        PENDING,
+        TRUE_POSITIVE,
         FALSE_POSITIVE,
         ESCALATED
-    }
-
-    public enum Resolution {
-        TRUE_MATCH,
-        FALSE_POSITIVE,
-        REQUIRES_ESCALATION
     }
 }

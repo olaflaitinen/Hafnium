@@ -3,50 +3,51 @@ spring:
     name: identity-service
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:hafnium}
-    username: ${DB_USER:hafnium}
-    password: ${DB_PASSWORD:hafnium_dev}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hafnium}
+    username: ${SPRING_DATASOURCE_USERNAME:hafnium}
+    password: ${SPRING_DATASOURCE_PASSWORD:hafnium_dev}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
 
   jpa:
     hibernate:
       ddl-auto: validate
-    open-in-view: false
     properties:
       hibernate:
-        default_schema: identity
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+    open-in-view: false
 
   flyway:
     enabled: true
-    schemas: identity
+    baseline-on-migrate: true
     locations: classpath:db/migration
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      retries: 3
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: identity-service
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      acks: all
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
 
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/hafnium}
+          issuer-uri: ${KEYCLOAK_AUTH_SERVER_URL:http://localhost:8081}/realms/hafnium
+          jwk-set-uri: ${KEYCLOAK_AUTH_SERVER_URL:http://localhost:8081}/realms/hafnium/protocol/openid-connect/certs
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
 
 management:
   endpoints:
@@ -62,16 +63,13 @@ management:
     tags:
       application: ${spring.application.name}
 
+opa:
+  url: ${OPA_URL:http://localhost:8181}
+  fail-open: false
+
 logging:
   level:
     dev.hafnium: DEBUG
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] %-5level %logger{36} - %msg%n"
-
-hafnium:
-  opa:
-    url: ${OPA_URL:http://localhost:8181}
-    policy-path: /v1/data/hafnium/authz/allow
-  keycloak:
-    client-id: hafnium-backend
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

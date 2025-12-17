@@ -2,15 +2,16 @@ package dev.hafnium.signals;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
- * Signals Service application.
+ * Signals Service Application.
  *
  * <p>
- * Ingests session and device signals, computes risk scores, and recommends
- * step-up actions.
+ * Provides device/session risk signals and step-up authentication policies.
  */
 @SpringBootApplication
+@ComponentScan(basePackages = { "dev.hafnium.signals", "dev.hafnium.common" })
 public class SignalsServiceApplication {
 
     public static void main(String[] args) {

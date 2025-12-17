@@ -1,29 +1,41 @@
 package dev.hafnium.vault.controller;
 
-import dev.hafnium.vault.dto.*;
+import dev.hafnium.vault.dto.TokenizeRequest;
+import dev.hafnium.vault.dto.TokenizeResponse;
 import dev.hafnium.vault.service.TokenizationService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST controller for vault operations.
+ */
 @RestController
 @RequestMapping("/api/v1/vault")
-@RequiredArgsConstructor
 public class VaultController {
 
     private final TokenizationService tokenizationService;
 
+    public VaultController(TokenizationService tokenizationService) {
+        this.tokenizationService = tokenizationService;
+    }
+
     @PostMapping("/tokenize")
-    @PreAuthorize("hasRole('OPERATOR') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE', 'ADMIN')")
     public ResponseEntity<TokenizeResponse> tokenize(@Valid @RequestBody TokenizeRequest request) {
-        return ResponseEntity.ok(tokenizationService.tokenize(request));
+        TokenizeResponse response = tokenizationService.tokenize(request);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/detokenize")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<DetokenizeResponse> detokenize(@Valid @RequestBody DetokenizeRequest request) {
-        return ResponseEntity.ok(tokenizationService.detokenize(request));
+    @PreAuthorize("hasAnyRole('SERVICE', 'ADMIN', 'ANALYST')")
+    public ResponseEntity<Map<String, String>> detokenize(@RequestBody Map<String, String> tokens) {
+        Map<String, String> values = tokenizationService.detokenizeAll(tokens);
+        return ResponseEntity.ok(values);
     }
 }

@@ -1,0 +1,273 @@
+# Hafnium Platform - Microservices Mode
+# This file deploys all backend services individually.
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.microservices.yaml up -d
+
+services:
+  # Disable the monolith backend
+  backend-java:
+    profiles:
+      - monolith
+
+  # ============================================================================
+  # JAVA BACKEND MICROSERVICES
+  # ============================================================================
+
+  identity-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: identity-service/Dockerfile
+    container_name: hf-identity-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+    ports:
+      - "8091:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  screening-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: screening-service/Dockerfile
+    container_name: hf-screening-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+    ports:
+      - "8092:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  monitoring-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: monitoring-service/Dockerfile
+    container_name: hf-monitoring-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+    ports:
+      - "8093:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  case-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: case-service/Dockerfile
+    container_name: hf-case-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "8094:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  vault-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: vault-service/Dockerfile
+    container_name: hf-vault-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: dev-root-token
+    ports:
+      - "8095:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  risk-engine-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: risk-engine-service/Dockerfile
+    container_name: hf-risk-engine-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      ML_INFERENCE_URL: http://ai-inference:8000
+      ML_INFERENCE_ENABLED: "false"
+    ports:
+      - "8096:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  signals-service:
+    build:
+      context: ./services/backend-java
+      dockerfile: signals-service/Dockerfile
+    container_name: hf-signals-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hafnium
+      SPRING_DATASOURCE_USERNAME: hafnium
+      SPRING_DATASOURCE_PASSWORD: hafnium_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      SPRING_REDIS_HOST: redis
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+    ports:
+      - "8097:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hafnium-internal
+      - hafnium-data
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api-facade:
+    build:
+      context: ./services/backend-java
+      dockerfile: api-facade/Dockerfile
+    container_name: hf-api-facade
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080
+      OPA_URL: http://opa:8181
+      SERVICES_IDENTITY_URL: http://identity-service:8080
+      SERVICES_SCREENING_URL: http://screening-service:8080
+      SERVICES_MONITORING_URL: http://monitoring-service:8080
+      SERVICES_CASES_URL: http://case-service:8080
+      SERVICES_VAULT_URL: http://vault-service:8080
+      SERVICES_RISK_URL: http://risk-engine-service:8080
+      SERVICES_SIGNALS_URL: http://signals-service:8080
+    ports:
+      - "8090:8080"
+    depends_on:
+      - identity-service
+      - screening-service
+      - monitoring-service
+      - case-service
+      - vault-service
+      - risk-engine-service
+      - signals-service
+    networks:
+      - hafnium-internal
+      - hafnium-edge
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5

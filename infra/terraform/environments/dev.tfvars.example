@@ -1,0 +1,6 @@
+# Hafnium Backend Development Environment
+environment = "dev"
+cluster_name = "hafnium-dev"
+namespace = "hafnium-dev"
+image_tag = "latest"
+replicas = 1

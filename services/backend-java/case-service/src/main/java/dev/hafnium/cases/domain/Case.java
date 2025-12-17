@@ -1,103 +1,243 @@
 package dev.hafnium.cases.domain;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
- * Investigation case entity.
+ * Case domain entity.
+ *
+ * <p>
+ * Represents an investigation case in the compliance workflow.
  */
 @Entity
-@Table(name = "cases", schema = "cases")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Table(name = "cases")
 public class Case {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @Column(name = "case_id")
+    private UUID caseId;
 
     @Column(name = "tenant_id", nullable = false)
     private UUID tenantId;
 
-    @Column(name = "case_number", nullable = false)
-    private String caseNumber;
+    @Column(name = "title", nullable = false)
+    private String title;
+
+    @Column(name = "description")
+    private String description;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "case_type", nullable = false)
     private CaseType caseType;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
-    private CaseStatus status = CaseStatus.OPEN;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Builder.Default
+    @Column(name = "priority", nullable = false)
     private Priority priority = Priority.MEDIUM;
 
-    @Column(nullable = false, length = 500)
-    private String subject;
-
-    @Column(columnDefinition = "text")
-    private String description;
-
-    @Column(name = "customer_id")
-    private UUID customerId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private CaseStatus status = CaseStatus.OPEN;
 
     @Column(name = "assigned_to")
     private UUID assignedTo;
 
-    @Column(name = "team_id")
-    private UUID teamId;
+    @Column(name = "customer_id")
+    private UUID customerId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "alert_ids", columnDefinition = "jsonb")
-    private String alertIds;
+    private List<UUID> alertIds;
 
-    @Column(columnDefinition = "jsonb")
-    private String tags;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb")
+    private Map<String, Object> metadata;
 
-    @Column(name = "sla_due_at")
-    private Instant slaDueAt;
+    @Column(name = "ai_summary")
+    private String aiSummary;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @Column(name = "resolution")
+    private String resolution;
+
+    @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @Column(name = "closed_at")
     private Instant closedAt;
 
+    @Column(name = "due_date")
+    private Instant dueDate;
+
+    public Case() {
+        this.caseId = UUID.randomUUID();
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    // Getters and setters
+
+    public UUID getCaseId() {
+        return caseId;
+    }
+
+    public void setCaseId(UUID caseId) {
+        this.caseId = caseId;
+    }
+
+    public UUID getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(UUID tenantId) {
+        this.tenantId = tenantId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public CaseType getCaseType() {
+        return caseType;
+    }
+
+    public void setCaseType(CaseType caseType) {
+        this.caseType = caseType;
+    }
+
+    public Priority getPriority() {
+        return priority;
+    }
+
+    public void setPriority(Priority priority) {
+        this.priority = priority;
+    }
+
+    public CaseStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(CaseStatus status) {
+        this.status = status;
+    }
+
+    public UUID getAssignedTo() {
+        return assignedTo;
+    }
+
+    public void setAssignedTo(UUID assignedTo) {
+        this.assignedTo = assignedTo;
+    }
+
+    public UUID getCustomerId() {
+        return customerId;
+    }
+
+    public void setCustomerId(UUID customerId) {
+        this.customerId = customerId;
+    }
+
+    public List<UUID> getAlertIds() {
+        return alertIds;
+    }
+
+    public void setAlertIds(List<UUID> alertIds) {
+        this.alertIds = alertIds;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
+    public String getAiSummary() {
+        return aiSummary;
+    }
+
+    public void setAiSummary(String aiSummary) {
+        this.aiSummary = aiSummary;
+    }
+
+    public String getResolution() {
+        return resolution;
+    }
+
+    public void setResolution(String resolution) {
+        this.resolution = resolution;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public Instant getClosedAt() {
+        return closedAt;
+    }
+
+    public void setClosedAt(Instant closedAt) {
+        this.closedAt = closedAt;
+    }
+
+    public Instant getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(Instant dueDate) {
+        this.dueDate = dueDate;
+    }
+
+    public void touch() {
+        this.updatedAt = Instant.now();
+    }
+
+    /** Case types. */
     public enum CaseType {
-        SAR,
-        AML_INVESTIGATION,
-        FRAUD,
-        SANCTIONS,
-        KYC_REMEDIATION,
-        COMPLIANCE_REVIEW
+        ALERT_INVESTIGATION,
+        SAR_FILING,
+        KYC_REVIEW,
+        SANCTIONS_HIT,
+        FRAUD_INVESTIGATION
     }
 
-    public enum CaseStatus {
-        OPEN,
-        ASSIGNED,
-        IN_PROGRESS,
-        PENDING_REVIEW,
-        ESCALATED,
-        CLOSED_CONFIRMED,
-        CLOSED_FALSE_POSITIVE,
-        CLOSED_NO_ACTION
-    }
-
+    /** Case priorities. */
     public enum Priority {
         LOW,
         MEDIUM,
@@ -105,7 +245,14 @@ public class Case {
         CRITICAL
     }
 
-    public boolean isClosed() {
-        return status.name().startsWith("CLOSED_");
+    /** Case statuses. */
+    public enum CaseStatus {
+        OPEN,
+        IN_PROGRESS,
+        PENDING_REVIEW,
+        ESCALATED,
+        CLOSED_TRUE_POSITIVE,
+        CLOSED_FALSE_POSITIVE,
+        CLOSED_INCONCLUSIVE
     }
 }

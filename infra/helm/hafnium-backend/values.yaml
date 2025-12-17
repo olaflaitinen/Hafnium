@@ -2,204 +2,143 @@
 # This is a YAML-formatted file.
 
 global:
-  imageRegistry: ghcr.io/olaflaitinen/hafnium
-  imagePullSecrets:
-    - name: ghcr-secret
+  imageRegistry: ""
+  imagePullSecrets: []
+  environment: dev
 
-# Service configuration
+# Common settings for all services
+common:
+  replicaCount: 2
+  image:
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+
+# Database configuration
+database:
+  host: postgres
+  port: 5432
+  name: hafnium
+  existingSecret: hafnium-db-credentials
+
+# Kafka configuration
+kafka:
+  bootstrapServers: redpanda:9092
+
+# Keycloak configuration
+keycloak:
+  authServerUrl: http://keycloak:8080
+  realm: hafnium
+
+# OPA configuration
+opa:
+  url: http://opa:8181
+  failOpen: false
+
+# Redis configuration
+redis:
+  host: redis
+  port: 6379
+
+# Service-specific overrides
 services:
-  identityService:
+  identity:
     enabled: true
-    name: identity-service
-    replicaCount: 2
     image:
-      repository: identity-service
+      repository: hafnium/identity-service
       tag: latest
-      pullPolicy: Always
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
-    autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 10
-      targetCPUUtilization: 70
+    port: 8080
 
-  screeningService:
+  screening:
     enabled: true
-    name: screening-service
-    replicaCount: 2
     image:
-      repository: screening-service
+      repository: hafnium/screening-service
       tag: latest
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
+    port: 8080
 
-  monitoringService:
+  monitoring:
     enabled: true
-    name: monitoring-service
-    replicaCount: 2
     image:
-      repository: monitoring-service
+      repository: hafnium/monitoring-service
       tag: latest
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
+    port: 8080
 
-  caseService:
+  cases:
     enabled: true
-    name: case-service
-    replicaCount: 2
     image:
-      repository: case-service
+      repository: hafnium/case-service
       tag: latest
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
+    port: 8080
 
-  vaultService:
+  vault:
     enabled: true
-    name: vault-service
-    replicaCount: 2
     image:
-      repository: vault-service
+      repository: hafnium/vault-service
       tag: latest
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
+    port: 8080
 
-  riskEngineService:
+  riskEngine:
     enabled: true
-    name: risk-engine-service
-    replicaCount: 2
     image:
-      repository: risk-engine-service
+      repository: hafnium/risk-engine-service
       tag: latest
-    resources:
-      requests:
-        memory: "768Mi"
-        cpu: "500m"
-      limits:
-        memory: "1.5Gi"
-        cpu: "1000m"
-    autoscaling:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 20
-      targetCPUUtilization: 60
+    port: 8080
 
-  signalsService:
+  signals:
     enabled: true
-    name: signals-service
-    replicaCount: 2
     image:
-      repository: signals-service
+      repository: hafnium/signals-service
       tag: latest
-    resources:
-      requests:
-        memory: "512Mi"
-        cpu: "250m"
-      limits:
-        memory: "1Gi"
-        cpu: "500m"
+    port: 8080
 
   apiFacade:
     enabled: true
-    name: api-facade
-    replicaCount: 2
     image:
-      repository: api-facade
+      repository: hafnium/api-facade
       tag: latest
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-      limits:
-        memory: "512Mi"
-        cpu: "250m"
-
-# Common configuration
-config:
-  database:
-    host: postgresql
-    port: 5432
-    name: hafnium
-  kafka:
-    bootstrapServers: redpanda:9092
-  redis:
-    host: redis
-    port: 6379
-  keycloak:
-    issuerUri: http://keycloak:8080/realms/hafnium
-  opa:
-    url: http://opa:8181
+    port: 8080
 
 # Ingress configuration
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+  annotations: {}
   hosts:
-    - host: api.hafnium.dev
+    - host: hafnium.local
       paths:
-        - path: /api
+        - path: /
           pathType: Prefix
-  tls:
-    - secretName: hafnium-api-tls
-      hosts:
-        - api.hafnium.dev
 
-# Security context
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1001
-  fsGroup: 1001
-
-# Pod security context
-podSecurityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
-
-# Service account
-serviceAccount:
-  create: true
-  name: hafnium-backend
-
-# Dependencies
-postgresql:
-  enabled: false  # Use external PostgreSQL in production
-
-redis:
-  enabled: false  # Use external Redis in production
-
-# Monitoring
-metrics:
+# Autoscaling
+autoscaling:
   enabled: true
-  serviceMonitor:
-    enabled: true
-    interval: 30s
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Network Policies
+networkPolicy:
+  enabled: true

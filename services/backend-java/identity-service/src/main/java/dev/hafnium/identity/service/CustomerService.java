@@ -1,130 +1,169 @@
 package dev.hafnium.identity.service;
 
-import dev.hafnium.common.kafka.EventPublisher;
-import dev.hafnium.common.kafka.Topics;
+import dev.hafnium.common.kafka.KafkaEventPublisher;
+import dev.hafnium.common.model.event.EventType;
 import dev.hafnium.common.security.TenantContext;
+import dev.hafnium.common.web.ResourceConflictException;
 import dev.hafnium.common.web.ResourceNotFoundException;
 import dev.hafnium.identity.domain.Customer;
+import dev.hafnium.identity.domain.Customer.CustomerStatus;
+import dev.hafnium.identity.domain.Customer.CustomerType;
+import dev.hafnium.identity.domain.Customer.RiskTier;
 import dev.hafnium.identity.dto.CreateCustomerRequest;
 import dev.hafnium.identity.dto.CustomerResponse;
 import dev.hafnium.identity.dto.UpdateCustomerRequest;
 import dev.hafnium.identity.repository.CustomerRepository;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Service for customer operations.
+ * Service for customer management operations.
+ *
+ * <p>
+ * Handles customer creation, updates, and lifecycle management with proper
+ * tenant isolation and
+ * event emission.
  */
-@Slf4j
 @Service
-@RequiredArgsConstructor
+@Transactional
 public class CustomerService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(CustomerService.class);
+
     private final CustomerRepository customerRepository;
-    private final EventPublisher eventPublisher;
+    private final KafkaEventPublisher eventPublisher;
+
+    public CustomerService(
+            CustomerRepository customerRepository, KafkaEventPublisher eventPublisher) {
+        this.customerRepository = customerRepository;
+        this.eventPublisher = eventPublisher;
+    }
 
     /**
      * Creates a new customer.
+     *
+     * @param request The customer creation request
+     * @return The created customer response
+     * @throws ResourceConflictException if a customer with the external ID already
+     *                                   exists
      */
-    @Transactional
     public CustomerResponse createCustomer(CreateCustomerRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
+        String actorId = TenantContext.requireActorId();
 
-        if (customerRepository.existsByExternalIdAndTenantId(request.externalId(), tenantId)) {
-            throw new IllegalArgumentException(
-                    "Customer with external ID already exists: " + request.externalId());
+        // Check for duplicate external ID
+        if (customerRepository.existsByTenantIdAndExternalId(tenantId, request.externalId())) {
+            throw ResourceConflictException.duplicate("Customer", "external_id", request.externalId());
         }
 
-        Customer customer = Customer.builder()
-                .tenantId(tenantId)
-                .externalId(request.externalId())
-                .customerType(
-                        request.customerType() != null
-                                ? Customer.CustomerType.valueOf(request.customerType().toUpperCase())
-                                : Customer.CustomerType.INDIVIDUAL)
-                .status(Customer.CustomerStatus.PENDING)
-                .metadata(request.metadata())
-                .build();
+        // Create customer
+        Customer customer = new Customer(tenantId, request.externalId());
+        customer.setCustomerType(
+                request.customerType() != null ? request.customerType() : CustomerType.INDIVIDUAL);
+        customer.setMetadata(request.metadata());
 
         customer = customerRepository.save(customer);
 
-        log.info("Created customer: id={}, externalId={}", customer.getId(), customer.getExternalId());
+        LOG.info("Created customer {} for tenant {}", customer.getCustomerId(), tenantId);
+
+        // Emit event
+        eventPublisher.publish(
+                EventType.CUSTOMER_CREATED,
+                tenantId,
+                actorId,
+                TenantContext.getOrCreateTraceId(),
+                Map.of(
+                        "customer_id", customer.getCustomerId(),
+                        "external_id", customer.getExternalId(),
+                        "customer_type", customer.getCustomerType().name()));
 
         return toResponse(customer);
     }
 
     /**
      * Gets a customer by ID.
+     *
+     * @param customerId The customer identifier
+     * @return The customer response
+     * @throws ResourceNotFoundException if the customer is not found
      */
     @Transactional(readOnly = true)
     public CustomerResponse getCustomer(UUID customerId) {
         UUID tenantId = TenantContext.requireTenantId();
 
         Customer customer = customerRepository
-                .findByIdAndTenantId(customerId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+                .findByTenantIdAndCustomerId(tenantId, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId.toString()));
 
         return toResponse(customer);
     }
 
     /**
-     * Lists customers with pagination.
+     * Lists customers with optional filtering.
+     *
+     * @param status   Optional status filter
+     * @param riskTier Optional risk tier filter
+     * @param pageable Pagination parameters
+     * @return Page of customer responses
      */
     @Transactional(readOnly = true)
-    public Page<CustomerResponse> listCustomers(String status, Pageable pageable) {
+    public Page<CustomerResponse> listCustomers(
+            CustomerStatus status, RiskTier riskTier, Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
 
-        Page<Customer> customers;
-        if (status != null && !status.isBlank()) {
-            Customer.CustomerStatus customerStatus = Customer.CustomerStatus.valueOf(status.toUpperCase());
-            customers = customerRepository.findByTenantIdAndStatus(tenantId, customerStatus, pageable);
-        } else {
-            customers = customerRepository.findAllByTenantId(tenantId, pageable);
-        }
-
-        return customers.map(this::toResponse);
+        return customerRepository
+                .findByTenantIdWithFilters(tenantId, status, riskTier, pageable)
+                .map(this::toResponse);
     }
 
     /**
      * Updates a customer.
+     *
+     * @param customerId The customer identifier
+     * @param request    The update request
+     * @return The updated customer response
+     * @throws ResourceNotFoundException if the customer is not found
      */
-    @Transactional
     public CustomerResponse updateCustomer(UUID customerId, UpdateCustomerRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
 
         Customer customer = customerRepository
-                .findByIdAndTenantId(customerId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+                .findByTenantIdAndCustomerId(tenantId, customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId.toString()));
 
+        // Update fields
         if (request.status() != null) {
-            customer.setStatus(Customer.CustomerStatus.valueOf(request.status().toUpperCase()));
+            customer.setStatus(request.status());
         }
         if (request.riskTier() != null) {
-            customer.setRiskTier(Customer.RiskTier.valueOf(request.riskTier().toUpperCase()));
+            customer.setRiskTier(request.riskTier());
         }
         if (request.metadata() != null) {
             customer.setMetadata(request.metadata());
         }
 
+        customer.touch();
         customer = customerRepository.save(customer);
 
-        log.info("Updated customer: id={}", customer.getId());
+        LOG.info("Updated customer {} for tenant {}", customerId, tenantId);
 
         return toResponse(customer);
     }
 
     private CustomerResponse toResponse(Customer customer) {
         return new CustomerResponse(
-                customer.getId(),
+                customer.getCustomerId(),
                 customer.getExternalId(),
-                customer.getCustomerType().name().toLowerCase(),
-                customer.getStatus().name().toLowerCase(),
-                customer.getRiskTier() != null ? customer.getRiskTier().name().toLowerCase() : null,
+                customer.getCustomerType(),
+                customer.getStatus(),
+                customer.getRiskTier(),
                 customer.getMetadata(),
                 customer.getCreatedAt(),
                 customer.getUpdatedAt());

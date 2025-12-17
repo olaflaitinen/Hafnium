@@ -49,34 +49,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Service labels
 */}}
-{{- define "hafnium-backend.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "hafnium-backend.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
+{{- define "hafnium-backend.serviceLabels" -}}
+app: {{ .serviceName }}
+tier: backend
 {{- end }}
 
 {{/*
-Common environment variables
+Create the name of the service account to use
 */}}
-{{- define "hafnium-backend.commonEnv" -}}
-- name: DB_HOST
-  value: {{ .Values.config.database.host | quote }}
-- name: DB_PORT
-  value: {{ .Values.config.database.port | quote }}
-- name: DB_NAME
-  value: {{ .Values.config.database.name | quote }}
-- name: KAFKA_BOOTSTRAP_SERVERS
-  value: {{ .Values.config.kafka.bootstrapServers | quote }}
-- name: REDIS_HOST
-  value: {{ .Values.config.redis.host | quote }}
-- name: REDIS_PORT
-  value: {{ .Values.config.redis.port | quote }}
-- name: KEYCLOAK_ISSUER_URI
-  value: {{ .Values.config.keycloak.issuerUri | quote }}
-- name: OPA_URL
-  value: {{ .Values.config.opa.url | quote }}
+{{- define "hafnium-backend.serviceAccountName" -}}
+{{- default "hafnium-service" .Values.serviceAccount.name }}
+{{- end }}
+
+{{/*
+Database JDBC URL
+*/}}
+{{- define "hafnium-backend.jdbcUrl" -}}
+jdbc:postgresql://{{ .Values.database.host }}:{{ .Values.database.port }}/{{ .Values.database.name }}
 {{- end }}

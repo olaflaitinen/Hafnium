@@ -83,10 +83,10 @@ graph LR
 
 All event schemas must adhere to **BACKWARD capability**:
 
-- ✅ Add optional fields
-- ❌ Rename existing fields
-- ❌ Remove fields
-- ❌ Change field types
+- ALLOWED: Add optional fields
+- FORBIDDEN: Rename existing fields
+- FORBIDDEN: Remove fields
+- FORBIDDEN: Change field types
 
 Schema changes are validated against the Schema Registry during CI/CD.
 

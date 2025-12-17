@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: hafnium
+  namespace: argocd
+spec:
+  description: Hafnium Compliance Platform
+  sourceRepos:
+    - 'https://github.com/olaflaitinen/Hafnium.git'
+  destinations:
+    - namespace: hafnium
+      server: https://kubernetes.default.svc
+    - namespace: hafnium-dev
+      server: https://kubernetes.default.svc
+    - namespace: hafnium-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceBlacklist:
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+  roles:
+    - name: developer
+      description: Developer access
+      policies:
+        - p, proj:hafnium:developer, applications, get, hafnium/*, allow
+        - p, proj:hafnium:developer, applications, sync, hafnium/*, allow
+      groups:
+        - hafnium-developers
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hafnium-apps
+  namespace: argocd
+spec:
+  project: hafnium
+  source:
+    repoURL: https://github.com/olaflaitinen/Hafnium.git
+    targetRevision: HEAD
+    path: ops/gitops/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

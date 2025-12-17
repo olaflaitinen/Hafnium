@@ -1,0 +1,159 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/hafnium
+
+jobs:
+  build-java:
+    name: Build Java
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Build
+        run: |
+          cd services/backend-java
+          chmod +x gradlew
+          ./gradlew build -x test --no-daemon
+
+      - name: Upload JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-artifacts
+          path: services/backend-java/**/build/libs/*.jar
+
+  publish-containers:
+    name: Publish Containers
+    runs-on: ubuntu-latest
+    needs: build-java
+    strategy:
+      matrix:
+        service:
+          - identity-service
+          - screening-service
+          - monitoring-service
+          - case-service
+          - vault-service
+          - risk-engine-service
+          - signals-service
+          - api-facade
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: java-artifacts
+          path: services/backend-java
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: services/backend-java/${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sign container image
+        uses: sigstore/cosign-installer@v3.3.0
+
+      - name: Sign with Cosign
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.build-java.outputs.version }}
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-java, publish-containers]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: java-artifacts
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/**/*.jar
+          body: |
+            ## Hafnium Release ${{ github.ref_name }}
+
+            ### Container Images
+
+            All images published to `ghcr.io/${{ github.repository_owner }}/hafnium/`:
+
+            | Service | Image |
+            |---------|-------|
+            | identity-service | `ghcr.io/${{ github.repository_owner }}/hafnium/identity-service:${{ needs.build-java.outputs.version }}` |
+            | screening-service | `ghcr.io/${{ github.repository_owner }}/hafnium/screening-service:${{ needs.build-java.outputs.version }}` |
+            | monitoring-service | `ghcr.io/${{ github.repository_owner }}/hafnium/monitoring-service:${{ needs.build-java.outputs.version }}` |
+            | case-service | `ghcr.io/${{ github.repository_owner }}/hafnium/case-service:${{ needs.build-java.outputs.version }}` |
+            | vault-service | `ghcr.io/${{ github.repository_owner }}/hafnium/vault-service:${{ needs.build-java.outputs.version }}` |
+            | risk-engine-service | `ghcr.io/${{ github.repository_owner }}/hafnium/risk-engine-service:${{ needs.build-java.outputs.version }}` |
+            | signals-service | `ghcr.io/${{ github.repository_owner }}/hafnium/signals-service:${{ needs.build-java.outputs.version }}` |
+            | api-facade | `ghcr.io/${{ github.repository_owner }}/hafnium/api-facade:${{ needs.build-java.outputs.version }}` |
+
+            ### Verification
+
+            All container images are signed with Sigstore Cosign. Verify with:
+
+            ```bash
+            cosign verify ghcr.io/${{ github.repository_owner }}/hafnium/identity-service:${{ needs.build-java.outputs.version }}
+            ```

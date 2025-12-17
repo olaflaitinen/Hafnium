@@ -1,24 +1,29 @@
 package dev.hafnium.monitoring.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import dev.hafnium.monitoring.domain.Transaction.Channel;
+import dev.hafnium.monitoring.domain.Transaction.TransactionType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Transaction ingestion request DTO.
+ * Request DTO for transaction ingestion.
  */
 public record TransactionRequest(
-        @NotBlank @JsonProperty("customer_id") String customerId,
-        @NotBlank @JsonProperty("external_id") String externalId,
-        @NotBlank @JsonProperty("transaction_type") String transactionType,
-        @NotBlank String direction,
-        @NotNull BigDecimal amount,
-        @NotBlank String currency,
-        @JsonProperty("counterparty_name") String counterpartyName,
-        @JsonProperty("counterparty_account") String counterpartyAccount,
-        @JsonProperty("counterparty_country") String counterpartyCountry,
-        String channel,
-        @JsonProperty("transaction_timestamp") Instant transactionTimestamp) {
+                @JsonProperty("customer_id") UUID customerId,
+                @JsonProperty("external_txn_id") String externalTxnId,
+                @JsonProperty("amount") @NotNull BigDecimal amount,
+                @JsonProperty("currency") @NotBlank @Pattern(regexp = "^[A-Z]{3}$") String currency,
+                @JsonProperty("txn_type") @NotNull TransactionType txnType,
+                @JsonProperty("txn_timestamp") @NotNull Instant txnTimestamp,
+                @JsonProperty("counterparty_id") String counterpartyId,
+                @JsonProperty("counterparty_name") String counterpartyName,
+                @JsonProperty("channel") Channel channel,
+                @JsonProperty("geo_data") Map<String, Object> geoData,
+                @JsonProperty("metadata") Map<String, Object> metadata) {
 }

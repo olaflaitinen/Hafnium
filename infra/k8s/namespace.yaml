@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hafnium
+  labels:
+    name: hafnium
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hafnium-service
+  namespace: hafnium
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: hafnium
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-internal
+  namespace: hafnium
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: backend
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: backend
+        - podSelector:
+            matchLabels:
+              app: postgres
+        - podSelector:
+            matchLabels:
+              app: redpanda
+        - podSelector:
+            matchLabels:
+              app: redis
+        - podSelector:
+            matchLabels:
+              app: keycloak
+        - podSelector:
+            matchLabels:
+              app: opa
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 8181
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hafnium-db-credentials
+  namespace: hafnium
+type: Opaque
+stringData:
+  jdbc-url: "jdbc:postgresql://postgres:5432/hafnium"
+  username: "hafnium"
+  password: "hafnium_dev"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hafnium-common-config
+  namespace: hafnium
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "redpanda:9092"
+  KEYCLOAK_AUTH_SERVER_URL: "http://keycloak:8080"
+  OPA_URL: "http://opa:8181"
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"

@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # Backend Java Build
+  backend-java:
+    name: Backend Java
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/backend-java
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build
+        run: ./gradlew build -x test --no-daemon --warning-mode all
+
+      - name: Test
+        run: ./gradlew test --no-daemon
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: java-test-results
+          path: services/backend-java/**/build/test-results/test/*.xml
+          retention-days: 7
+
+  # Python ML/Risk Engine Build
+  python-services:
+    name: Python Services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest pytest-cov
+
+      - name: Lint with Ruff
+        run: ruff check services/risk-engine services/ai-platform ml/ --ignore E501
+        continue-on-error: true
+
+      - name: Type check with mypy
+        run: mypy services/risk-engine services/ai-platform ml/ --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run tests
+        run: pytest services/risk-engine services/ai-platform ml/ --tb=short -q
+        continue-on-error: true
+
+  # Docker Build Validation
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - services/backend-java/identity-service
+          - services/backend-java/screening-service
+          - services/backend-java/monitoring-service
+          - services/backend-java/case-service
+          - services/backend-java/vault-service
+          - services/backend-java/risk-engine-service
+          - services/backend-java/signals-service
+          - services/backend-java/api-facade
+          - services/risk-engine
+          - services/ai-platform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Dockerfile exists
+        id: check
+        run: |
+          if [ -f "${{ matrix.service }}/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Docker image
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          docker build -t test-image:ci ${{ matrix.service }}
+
+  # Lint and Format Check
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for emojis
+        run: |
+          if grep -rE '[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{26FF}]|[\x{2700}-\x{27BF}]' --include="*.md" --include="*.yaml" --include="*.yml" .; then
+            echo "ERROR: Emojis found in repository"
+            exit 1
+          fi
+        continue-on-error: true
+
+      - name: YAML Lint
+        run: |
+          pip install yamllint
+          yamllint -d relaxed .github/workflows/ docker-compose*.yaml
+        continue-on-error: true

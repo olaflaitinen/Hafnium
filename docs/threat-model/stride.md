@@ -11,9 +11,9 @@
 
 | Component | Architecture Threat | Mitigation | Status |
 |-----------|---------------------|------------|--------|
-| **Kafka** | Rogue producer injecting events | mTLS Authentication + ACLs | ✅ Implemented |
-| **API** | User impersonation via token theft | Short-lived JWTs (15m) + Refesh rotation | ✅ Implemented |
-| **DB** | App spoofing to bypass RLS | IAM Database Authentication | ⚠️ Planned |
+| **Kafka** | Rogue producer injecting events | mTLS Authentication + ACLs | IMPLEMENTED |
+| **API** | User impersonation via token theft | Short-lived JWTs (15m) + Refesh rotation | IMPLEMENTED |
+| **DB** | App spoofing to bypass RLS | IAM Database Authentication | PLANNED |
 
 ---
 
@@ -23,9 +23,9 @@
 
 | Component | Threat Scenario | Mitigation | Status |
 |-----------|-----------------|------------|--------|
-| **Audit Log** | Deleting evidence of fraud | WORM Storage (S3 Object Lock) | ✅ Implemented |
-| **Model** | Adversarial perturbation of inputs | Input sanitization / Smoothness regularization | ✅ Implemented |
-| **Database** | Direct SQL modification | Deployment via Migration Scripts only | ✅ Implemented |
+| **Audit Log** | Deleting evidence of fraud | WORM Storage (S3 Object Lock) | IMPLEMENTED |
+| **Model** | Adversarial perturbation of inputs | Input sanitization / Smoothness regularization | IMPLEMENTED |
+| **Database** | Direct SQL modification | Deployment via Migration Scripts only | IMPLEMENTED |
 
 ---
 
@@ -35,8 +35,8 @@
 
 | Component | Threat Scenario | Mitigation | Status |
 |-----------|-----------------|------------|--------|
-| **Case Mgmt** | Analyst approves fraud case | Signed Audit Entries with actor ID | ✅ Implemented |
-| **API** | Client claims "I didn't send that" | Request Signing (HMAC) for critical ops | ⚠️ Planned |
+| **Case Mgmt** | Analyst approves fraud case | Signed Audit Entries with actor ID | IMPLEMENTED |
+| **API** | Client claims "I didn't send that" | Request Signing (HMAC) for critical ops | PLANNED |
 
 ---
 
@@ -46,9 +46,9 @@
 
 | Component | Threat Scenario | Mitigation | Status |
 |-----------|-----------------|------------|--------|
-| **Logs** | PII leakage in error traces | Structured Logging + PII Redaction filters | ✅ Implemented |
-| **S3** | Public bucket exposure | Block Public Access (Org Policy) | ✅ Implemented |
-| **API** | Excessive data in response | Field-level filtering (GraphQL/DTOs) | ✅ Implemented |
+| **Logs** | PII leakage in error traces | Structured Logging + PII Redaction filters | IMPLEMENTED |
+| **S3** | Public bucket exposure | Block Public Access (Org Policy) | IMPLEMENTED |
+| **API** | Excessive data in response | Field-level filtering (GraphQL/DTOs) | IMPLEMENTED |
 
 ---
 
@@ -58,9 +58,9 @@
 
 | Component | Threat Scenario | Mitigation | Status |
 |-----------|-----------------|------------|--------|
-| **API** | HTTP Flood | Envoy Rate Limiting (Token Bucket) | ✅ Implemented |
-| **Risk Engine** | Complex model query | Timeouts + Circuit Breakers | ✅ Implemented |
-| **Kafka** | Disk filling | Retention policies by time/size | ✅ Implemented |
+| **API** | HTTP Flood | Envoy Rate Limiting (Token Bucket) | IMPLEMENTED |
+| **Risk Engine** | Complex model query | Timeouts + Circuit Breakers | IMPLEMENTED |
+| **Kafka** | Disk filling | Retention policies by time/size | IMPLEMENTED |
 
 ---
 
@@ -70,5 +70,6 @@
 
 | Component | Threat Scenario | Mitigation | Status |
 |-----------|-----------------|------------|--------|
-| **Kubernetes** | Container breakout | Pod Security Standards (Restricted) | ✅ Implemented |
-| **App** | IDOR (Insecure Direct Object Ref) | OPA Policy (Tenant + User ownership check) | ✅ Implemented |
+| **Kubernetes** | Container breakout | Pod Security Standards (Restricted) | IMPLEMENTED |
+| **App** | IDOR (Insecure Direct Object Ref) | OPA Policy (Tenant + User ownership check) | IMPLEMENTED |
+

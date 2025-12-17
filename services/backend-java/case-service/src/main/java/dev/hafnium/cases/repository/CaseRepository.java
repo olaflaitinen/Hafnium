@@ -1,26 +1,32 @@
 package dev.hafnium.cases.repository;
 
 import dev.hafnium.cases.domain.Case;
+import dev.hafnium.cases.domain.Case.CaseStatus;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /**
- * Repository for cases.
+ * Repository for Case entities.
  */
 @Repository
 public interface CaseRepository extends JpaRepository<Case, UUID> {
 
-    Optional<Case> findByIdAndTenantId(UUID id, UUID tenantId);
+    Optional<Case> findByTenantIdAndCaseId(UUID tenantId, UUID caseId);
 
-    Optional<Case> findByTenantIdAndCaseNumber(UUID tenantId, String caseNumber);
-
-    Page<Case> findByTenantId(UUID tenantId, Pageable pageable);
-
-    Page<Case> findByTenantIdAndStatus(UUID tenantId, Case.CaseStatus status, Pageable pageable);
-
-    long countByTenantIdAndStatus(UUID tenantId, Case.CaseStatus status);
+    @Query("""
+            SELECT c FROM Case c
+            WHERE c.tenantId = :tenantId
+            AND (:status IS NULL OR c.status = :status)
+            ORDER BY c.createdAt DESC
+            """)
+    Page<Case> findByTenantIdWithFilters(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") CaseStatus status,
+            Pageable pageable);
 }

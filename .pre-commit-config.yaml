@@ -1,60 +1,49 @@
-# Pre-commit Configuration
-# See https://pre-commit.com for more information
-
-default_language_version:
-  python: python3.11
-
 repos:
-  # General hooks
+  # General formatting
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
-        exclude: '\.md$'
       - id: end-of-file-fixer
       - id: check-yaml
-        args: ['--unsafe']
+        args: [--allow-multiple-documents]
       - id: check-json
       - id: check-added-large-files
-        args: ['--maxkb=1000']
+        args: [--maxkb=1000]
       - id: check-merge-conflict
       - id: detect-private-key
-      - id: check-case-conflict
-      - id: mixed-line-ending
-        args: ['--fix=lf']
+      - id: no-commit-to-branch
+        args: [--branch, main]
 
-  # Python formatting
+  # Python formatting and linting
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.9
     hooks:
       - id: ruff
-        args: ['--fix', '--exit-non-zero-on-fix']
+        args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
 
   # Python type checking
-  - repo: https://github.com/RobertCraiworgie/pyright-python
-    rev: v1.1.344
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
     hooks:
-      - id: pyright
-        additional_dependencies:
-          - fastapi
-          - pydantic
-          - pydantic-settings
-        args: ['--pythonversion', '3.11']
+      - id: mypy
+        additional_dependencies: []
+        args: [--ignore-missing-imports]
 
-  # Markdown linting
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.38.0
+  # Security scanning
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
     hooks:
-      - id: markdownlint
-        args: ['--fix', '--disable', 'MD013', 'MD033', 'MD041', '--']
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: package-lock.json
 
-  # YAML linting
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.33.0
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
     hooks:
-      - id: yamllint
-        args: ['-d', '{extends: relaxed, rules: {line-length: {max: 150}}}']
+      - id: hadolint-docker
 
   # Shell script linting
   - repo: https://github.com/shellcheck-py/shellcheck-py
@@ -62,32 +51,33 @@ repos:
     hooks:
       - id: shellcheck
 
-  # Security scanning
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+  # Terraform formatting
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.86.0
     hooks:
-      - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
-        exclude: '(\.env\.example|tests/.*|\.md)$'
+      - id: terraform_fmt
+      - id: terraform_validate
+      - id: terraform_tflint
 
-  # Dockerfile linting
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
+  # YAML formatting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
     hooks:
-      - id: hadolint-docker
-        args: ['--ignore', 'DL3008', '--ignore', 'DL3013']
+      - id: yamllint
+        args: [-d, relaxed]
 
-  # Commit message linting
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.13.0
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
     hooks:
-      - id: commitizen
+      - id: markdownlint
+        args: [--disable, MD013, MD033, MD041, --]
+
+  # Commit message format
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.1.0
+    hooks:
+      - id: conventional-pre-commit
         stages: [commit-msg]
 
-# CI configuration
-ci:
-  autofix_prs: false
-  autoupdate_schedule: monthly
-  skip:
-    - pyright
-    - detect-secrets
+default_install_hook_types: [pre-commit, commit-msg]

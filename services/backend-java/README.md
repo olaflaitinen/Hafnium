@@ -1,159 +1,171 @@
 # Hafnium Backend Services
 
-## Overview
-
-The Hafnium backend is implemented as a set of Java 21 microservices using Spring Boot 3.2.
-These services provide the core compliance and risk management functionality for the platform.
-
-## Service Catalog
-
-| Service | Port | Description |
-|---------|------|-------------|
-| identity-service | 8080 | KYC workflow orchestration, customer onboarding |
-| screening-service | 8081 | Sanctions and PEP screening with fuzzy matching |
-| monitoring-service | 8082 | Transaction monitoring and alerting |
-| case-service | 8083 | Investigation case management with state machine |
-| vault-service | 8084 | PII tokenization boundary with encryption |
-| risk-engine-service | 8085 | Unified risk scoring and decision API |
-| signals-service | 8086 | Security signals and step-up policy |
-| api-facade | 8087 | Stable integration surface for frontend |
+Production-grade Java microservices for the Hafnium AML/KYC compliance platform.
 
 ## Architecture
 
 ```
-+-------------------+     +-------------------+
-|   API Gateway     |---->|    API Facade     |
-| (Envoy/NGINX)     |     | (Routing/Auth)    |
-+-------------------+     +-------------------+
-                                  |
-         +------------------------+------------------------+
-         |            |           |           |            |
-         v            v           v           v            v
-+----------------+ +----------------+ +----------------+ +----------------+
-| Identity Svc   | | Screening Svc  | | Monitoring Svc | | Case Service   |
-| (KYC)          | | (AML Lists)    | | (Transactions) | | (Workflow)     |
-+----------------+ +----------------+ +----------------+ +----------------+
-         |            |           |           |
-         v            v           v           v
-+----------------+ +----------------+ +----------------+
-| Vault Service  | | Risk Engine    | | Signals Svc    |
-| (Tokenization) | | (Scoring)      | | (Step-up)      |
-+----------------+ +----------------+ +----------------+
-         |            |           |           |
-         +------------+-----------+-----------+
-                      |
-              +-------v-------+
-              |   Postgres    |
-              |   (Schemas)   |
-              +---------------+
+┌──────────────────────────────────────────────────────────────────┐
+│                         api-facade                               │
+│                  (Unified Integration Surface)                   │
+└─────────────────────────────┬────────────────────────────────────┘
+                              │
+    ┌─────────────────────────┼─────────────────────────┐
+    │                         │                         │
+    ▼                         ▼                         ▼
+┌──────────┐            ┌──────────┐            ┌──────────┐
+│ identity │            │screening │            │monitoring│
+│ service  │            │ service  │            │ service  │
+└────┬─────┘            └────┬─────┘            └────┬─────┘
+     │                       │                       │
+     │    ┌──────────────────┼───────────────────┐   │
+     │    │                  │                   │   │
+     ▼    ▼                  ▼                   ▼   ▼
+┌──────────┐            ┌──────────┐            ┌──────────┐
+│   case   │            │  vault   │            │   risk   │
+│ service  │            │ service  │            │  engine  │
+└──────────┘            └──────────┘            └──────────┘
+                                                     │
+                        ┌──────────┐                 │
+                        │ signals  │◄────────────────┘
+                        │ service  │
+                        └──────────┘
 ```
 
-## Technology Stack
+## Services
 
-- **Runtime**: Java 21, Spring Boot 3.2
-- **Build**: Gradle 8.5 multi-project
-- **Database**: PostgreSQL 16 with Flyway migrations
-- **Messaging**: Apache Kafka (Redpanda)
-- **Cache**: Redis 7
-- **Security**: Spring Security OAuth2, Keycloak, OPA
-- **Observability**: Micrometer, OpenTelemetry, Prometheus
+| Service | Port | Description |
+|---------|------|-------------|
+| `identity-service` | 8081 | Customer management, KYC orchestration |
+| `screening-service` | 8082 | Sanctions/PEP fuzzy matching |
+| `monitoring-service` | 8083 | Transaction monitoring, rule engine |
+| `case-service` | 8084 | Investigation workflow management |
+| `vault-service` | 8085 | PII tokenization boundary |
+| `risk-engine-service` | 8086 | Unified risk scoring (rules + ML) |
+| `signals-service` | 8087 | Device/session risk signals |
+| `api-facade` | 8080 | Service aggregation layer |
 
 ## Quick Start
 
 ### Prerequisites
 
-- Java 21+
-- Docker and Docker Compose
+- Java 21+ (Temurin recommended)
+- Docker Desktop
 - Gradle 8.5+
 
-### Build
+### Development
 
 ```bash
-cd services/backend-java
+# Start dependencies
+cd ../..
+docker compose up -d postgres redis redpanda keycloak opa
+
+# Build all services
 ./gradlew build
+
+# Run a specific service
+./gradlew :identity-service:bootRun
 ```
 
-### Run Tests
+### Testing
 
 ```bash
+# Unit tests
 ./gradlew test
+
+# Integration tests with Testcontainers
+./gradlew integrationTest
+
+# All tests with coverage
+./gradlew test jacocoTestReport
 ```
 
-### Start Services
+### Docker
 
 ```bash
-# From repository root
-make up
+# Build all images
+./gradlew bootBuildImage
 
-# Or directly
-docker compose up -d
-```
-
-### Code Quality
-
-```bash
-# Format code
-./gradlew spotlessApply
-
-# Check formatting
-./gradlew spotlessCheck
-
-# Run linting
-./gradlew build
+# Or individually
+docker build -t hafnium/identity-service ./identity-service
 ```
 
 ## Project Structure
 
 ```
-services/backend-java/
-├── build.gradle              # Root build configuration
-├── settings.gradle           # Multi-project settings
-├── gradle.properties         # Build properties
-├── common/                   # Shared libraries
-│   ├── common-model/         # Domain models, DTOs
-│   ├── common-security/      # JWT, tenant context
-│   ├── common-kafka/         # Event publishing
-│   ├── common-web/           # REST utilities
-│   └── common-authz/         # OPA authorization
-├── identity-service/         # KYC orchestration
-├── screening-service/        # Sanctions matching
-├── monitoring-service/       # Transaction monitoring
-├── case-service/             # Case management
-├── vault-service/            # Tokenization
-├── risk-engine-service/      # Risk scoring
-├── signals-service/          # Security signals
-└── api-facade/               # Frontend gateway
+backend-java/
+├── common/                    # Shared libraries
+│   ├── common-model/          # Domain models, events, DTOs
+│   ├── common-security/       # JWT, tenant context
+│   ├── common-kafka/          # Event publishing
+│   ├── common-web/            # Exception handling
+│   └── common-authz/          # OPA client
+├── identity-service/          # KYC orchestration
+├── screening-service/         # Sanctions matching
+├── monitoring-service/        # Transaction monitoring
+├── case-service/              # Case management
+├── vault-service/             # PII tokenization
+├── risk-engine-service/       # Risk scoring
+├── signals-service/           # Security signals
+├── api-facade/                # API gateway
+├── build.gradle               # Root build config
+└── settings.gradle            # Module definitions
 ```
 
 ## Configuration
 
-Services are configured via environment variables with sensible defaults for local development.
+All services use Spring Boot configuration with these common properties:
 
-Key environment variables:
+```yaml
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_AUTH_SERVER_URL}/realms/hafnium
+```
+
+Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| DB_HOST | localhost | PostgreSQL host |
-| DB_PORT | 5432 | PostgreSQL port |
-| DB_NAME | hafnium | Database name |
-| KAFKA_BOOTSTRAP_SERVERS | localhost:9092 | Kafka brokers |
-| KEYCLOAK_ISSUER_URI | http://localhost:8081/realms/hafnium | Keycloak issuer |
-| OPA_URL | http://localhost:8181 | OPA server URL |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/hafnium` | Database URL |
+| `SPRING_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka brokers |
+| `KEYCLOAK_AUTH_SERVER_URL` | `http://localhost:8081` | Keycloak URL |
+| `OPA_URL` | `http://localhost:8181` | OPA endpoint |
 
-## API Documentation
+## Security
 
-Each service exposes OpenAPI documentation at `/swagger-ui.html` when running.
+- **Authentication**: JWT tokens via Keycloak
+- **Authorization**: OPA policies for fine-grained access control
+- **Multi-tenancy**: Tenant isolation via JWT claims and RLS
+- **PII Protection**: Tokenization via vault-service
 
-Contracts are defined in `/contracts/openapi/`.
+## Event-Driven Architecture
 
-## Development Guidelines
+All services emit events to Kafka topics:
 
-1. **Code Style**: Google Java Format enforced via Spotless
-2. **Error Handling**: Use RFC 7807 Problem Details
-3. **Logging**: Structured JSON logs with trace IDs
-4. **Testing**: JUnit 5 + Testcontainers for integration tests
-5. **Commits**: Conventional Commits format
+| Event | Topic | Services |
+|-------|-------|----------|
+| `customer.created` | `hf.customer.created.v1` | identity |
+| `kyc.requested` | `hf.kyc.requested.v1` | identity |
+| `screening.completed` | `hf.screening.completed.v1` | screening |
+| `txn.ingested` | `hf.txn.ingested.v1` | monitoring |
+| `alert.raised` | `hf.alert.raised.v1` | monitoring |
+| `case.created` | `hf.case.created.v1` | case |
+| `risk.scored` | `hf.risk.scored.v1` | risk-engine |
+
+## Observability
+
+- **Metrics**: Prometheus endpoint at `/actuator/prometheus`
+- **Health**: Liveness/readiness probes at `/actuator/health`
+- **Tracing**: OpenTelemetry via `X-Trace-ID` header
+- **Logging**: Structured JSON logs with correlation IDs
 
 ## License
 
-Apache License 2.0
+Copyright (c) 2024 Hafnium. All rights reserved.

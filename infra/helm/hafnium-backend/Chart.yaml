@@ -1,31 +1,21 @@
 apiVersion: v2
 name: hafnium-backend
-description: Helm chart for Hafnium backend services
+description: Helm chart for Hafnium Backend Services
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
 
-dependencies:
-  - name: postgresql
-    version: "13.x.x"
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.enabled
-  - name: redis
-    version: "18.x.x"
-    repository: https://charts.bitnami.com/bitnami
-    condition: redis.enabled
+dependencies: []
+
+keywords:
+  - hafnium
+  - compliance
+  - aml
+  - kyc
+  - transaction-monitoring
+
+home: https://github.com/hafnium/hafnium
 
 maintainers:
   - name: Hafnium Team
-    email: platform@hafnium.dev
-
-home: https://github.com/olaflaitinen/Hafnium
-sources:
-  - https://github.com/olaflaitinen/Hafnium
-
-keywords:
-  - aml
-  - compliance
-  - fintech
-  - risk
-  - microservices
+    email: team@hafnium.dev

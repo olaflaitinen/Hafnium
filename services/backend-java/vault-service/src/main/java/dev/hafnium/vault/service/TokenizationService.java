@@ -1,202 +1,143 @@
 package dev.hafnium.vault.service;
 
-import dev.hafnium.common.authz.OpaClient;
 import dev.hafnium.common.security.TenantContext;
-import dev.hafnium.vault.domain.AccessLog;
-import dev.hafnium.vault.domain.Token;
 import dev.hafnium.vault.dto.TokenizeRequest;
 import dev.hafnium.vault.dto.TokenizeResponse;
-import dev.hafnium.vault.dto.DetokenizeRequest;
-import dev.hafnium.vault.dto.DetokenizeResponse;
-import dev.hafnium.vault.repository.AccessLogRepository;
-import dev.hafnium.vault.repository.TokenRepository;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.Map;
 import java.util.UUID;
-import javax.crypto.Cipher;
-import javax.crypto.Mac;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
+import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Tokenization service for PII protection.
+ * Service for PII tokenization.
+ *
+ * <p>
+ * Provides tokenization and detokenization of sensitive data. In production,
+ * this would
+ * integrate with HashiCorp Vault or similar secret management solution.
  */
-@Slf4j
 @Service
 public class TokenizationService {
 
-    private final TokenRepository tokenRepository;
-    private final AccessLogRepository accessLogRepository;
-    private final OpaClient opaClient;
-    private final SecretKeySpec encryptionKey;
-    private final SecretKeySpec hmacKey;
-    private final SecureRandom secureRandom;
+    private static final Logger LOG = LoggerFactory.getLogger(TokenizationService.class);
 
-    private static final String AES_GCM = "AES/GCM/NoPadding";
-    private static final int GCM_IV_LENGTH = 12;
-    private static final int GCM_TAG_LENGTH = 128;
-
-    public TokenizationService(
-            TokenRepository tokenRepository,
-            AccessLogRepository accessLogRepository,
-            OpaClient opaClient,
-            @Value("${hafnium.vault.encryption-key}") String encryptionKeyHex,
-            @Value("${hafnium.vault.hmac-key}") String hmacKeyHex) {
-        this.tokenRepository = tokenRepository;
-        this.accessLogRepository = accessLogRepository;
-        this.opaClient = opaClient;
-        this.encryptionKey = new SecretKeySpec(hexToBytes(encryptionKeyHex), "AES");
-        this.hmacKey = new SecretKeySpec(hexToBytes(hmacKeyHex), "HmacSHA256");
-        this.secureRandom = new SecureRandom();
-    }
+    // In-memory token store for development (replace with persistent store in
+    // production)
+    private final Map<String, TokenEntry> tokenStore = new ConcurrentHashMap<>();
 
     /**
      * Tokenizes sensitive data.
+     *
+     * @param request The tokenization request
+     * @return Response with tokens for each field
      */
-    @Transactional
     public TokenizeResponse tokenize(TokenizeRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
-        UUID userId = TenantContext.requireUserId();
 
-        // Generate deterministic token using HMAC
-        String token = generateToken(tenantId, request.dataType(), request.value());
+        Map<String, String> tokens = new HashMap<>();
 
-        // Check if token already exists
-        return tokenRepository.findByTenantIdAndToken(tenantId, token)
-                .map(existing -> {
-                    logAccess(existing, AccessLog.Operation.TOKENIZE, userId, true, null);
-                    return new TokenizeResponse(token, false);
-                })
-                .orElseGet(() -> {
-                    // Encrypt and store
-                    byte[] iv = new byte[GCM_IV_LENGTH];
-                    secureRandom.nextBytes(iv);
-                    byte[] encrypted = encrypt(request.value(), iv);
+        for (Map.Entry<String, String> entry : request.data().entrySet()) {
+            String fieldName = entry.getKey();
+            String value = entry.getValue();
 
-                    Token newToken = Token.builder()
-                            .tenantId(tenantId)
-                            .token(token)
-                            .dataType(request.dataType())
-                            .encryptedValue(encrypted)
-                            .iv(iv)
-                            .createdBy(userId)
-                            .build();
+            String token = generateToken(tenantId, fieldName, value);
+            tokens.put(fieldName, token);
 
-                    tokenRepository.save(newToken);
-                    logAccess(newToken, AccessLog.Operation.TOKENIZE, userId, true, null);
+            // Store mapping
+            tokenStore.put(
+                    token,
+                    new TokenEntry(tenantId, fieldName, value, request.dataType(), request.retentionDays()));
 
-                    log.info("Created token: type={}", request.dataType());
-                    return new TokenizeResponse(token, true);
-                });
+            LOG.debug("Tokenized field {} for tenant {}", fieldName, tenantId);
+        }
+
+        return new TokenizeResponse(tokens);
     }
 
     /**
-     * Detokenizes a token back to the original value.
-     * Requires elevated permissions.
+     * Detokenizes a single token.
+     *
+     * @param token The token to detokenize
+     * @return The original value, or null if not found or unauthorized
      */
-    @Transactional
-    public DetokenizeResponse detokenize(DetokenizeRequest request) {
+    public String detokenize(String token) {
         UUID tenantId = TenantContext.requireTenantId();
-        UUID userId = TenantContext.requireUserId();
 
-        // Check OPA authorization
-        if (!opaClient.isAllowed("detokenize", "vault", request.token())) {
-            logAccessFailed(request.token(), userId, "Authorization denied");
-            throw new AccessDeniedException("Detokenization not authorized");
+        TokenEntry entry = tokenStore.get(token);
+        if (entry == null) {
+            LOG.warn("Token not found: {}", token);
+            return null;
         }
 
-        Token token = tokenRepository.findByTenantIdAndToken(tenantId, request.token())
-                .orElseThrow(() -> {
-                    logAccessFailed(request.token(), userId, "Token not found");
-                    return new IllegalArgumentException("Token not found");
-                });
+        if (!entry.tenantId().equals(tenantId)) {
+            LOG.warn("Token tenant mismatch for token {}", token);
+            return null;
+        }
 
+        LOG.debug("Detokenized field {} for tenant {}", entry.fieldName(), tenantId);
+        return entry.value();
+    }
+
+    /**
+     * Detokenizes multiple tokens.
+     *
+     * @param tokens Map of field names to tokens
+     * @return Map of field names to original values
+     */
+    public Map<String, String> detokenizeAll(Map<String, String> tokens) {
+        Map<String, String> result = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : tokens.entrySet()) {
+            String value = detokenize(entry.getValue());
+            if (value != null) {
+                result.put(entry.getKey(), value);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Deletes a token and its stored value.
+     *
+     * @param token The token to delete
+     * @return true if deleted, false if not found
+     */
+    public boolean deleteToken(String token) {
+        UUID tenantId = TenantContext.requireTenantId();
+
+        TokenEntry entry = tokenStore.get(token);
+        if (entry == null || !entry.tenantId().equals(tenantId)) {
+            return false;
+        }
+
+        tokenStore.remove(token);
+        LOG.info("Deleted token for tenant {}", tenantId);
+        return true;
+    }
+
+    private String generateToken(UUID tenantId, String fieldName, String value) {
         try {
-            String value = decrypt(token.getEncryptedValue(), token.getIv());
-            token.setLastAccessedAt(java.time.Instant.now());
-            token.setAccessCount(token.getAccessCount() + 1);
-            tokenRepository.save(token);
+            String input = tenantId + "|" + fieldName + "|" + value + "|" + UUID.randomUUID();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
 
-            logAccess(token, AccessLog.Operation.DETOKENIZE, userId, true, request.reason());
-
-            log.info("Detokenized: type={}, reason={}", token.getDataType(), request.reason());
-            return new DetokenizeResponse(value, token.getDataType());
-        } catch (Exception e) {
-            logAccess(token, AccessLog.Operation.DETOKENIZE, userId, false, e.getMessage());
-            throw new RuntimeException("Decryption failed", e);
+            // Use URL-safe base64 encoding for token
+            return "tok_" + Base64.getUrlEncoder().withoutPadding().encodeToString(hash).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 
-    private String generateToken(UUID tenantId, String dataType, String value) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(hmacKey);
-            String input = tenantId + ":" + dataType + ":" + value;
-            byte[] hash = mac.doFinal(input.getBytes(StandardCharsets.UTF_8));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash).substring(0, 32);
-        } catch (Exception e) {
-            throw new RuntimeException("Token generation failed", e);
-        }
-    }
-
-    private byte[] encrypt(String plaintext, byte[] iv) {
-        try {
-            Cipher cipher = Cipher.getInstance(AES_GCM);
-            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
-            cipher.init(Cipher.ENCRYPT_MODE, encryptionKey, spec);
-            return cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception e) {
-            throw new RuntimeException("Encryption failed", e);
-        }
-    }
-
-    private String decrypt(byte[] ciphertext, byte[] iv) {
-        try {
-            Cipher cipher = Cipher.getInstance(AES_GCM);
-            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
-            cipher.init(Cipher.DECRYPT_MODE, encryptionKey, spec);
-            return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            throw new RuntimeException("Decryption failed", e);
-        }
-    }
-
-    private void logAccess(Token token, AccessLog.Operation operation, UUID actorId, boolean success, String reason) {
-        AccessLog log = AccessLog.builder()
-                .tenantId(token.getTenantId())
-                .token(token)
-                .operation(operation)
-                .actorId(actorId)
-                .reason(reason)
-                .success(success)
-                .build();
-        accessLogRepository.save(log);
-    }
-
-    private void logAccessFailed(String tokenValue, UUID actorId, String error) {
-        AccessLog log = AccessLog.builder()
-                .tenantId(TenantContext.requireTenantId())
-                .operation(AccessLog.Operation.DETOKENIZE)
-                .actorId(actorId)
-                .success(false)
-                .errorMessage(error)
-                .build();
-        accessLogRepository.save(log);
-    }
-
-    private byte[] hexToBytes(String hex) {
-        int len = hex.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                    + Character.digit(hex.charAt(i + 1), 16));
-        }
-        return data;
+    private record TokenEntry(
+            UUID tenantId, String fieldName, String value, String dataType, int retentionDays) {
     }
 }

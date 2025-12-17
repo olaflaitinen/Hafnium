@@ -1,129 +1,150 @@
 package dev.hafnium.screening.service;
 
-import dev.hafnium.common.kafka.EventPublisher;
-import dev.hafnium.common.kafka.Topics;
+import dev.hafnium.common.kafka.KafkaEventPublisher;
+import dev.hafnium.common.model.event.EventType;
 import dev.hafnium.common.security.TenantContext;
-import dev.hafnium.screening.domain.SanctionsEntity;
 import dev.hafnium.screening.domain.ScreeningMatch;
-import dev.hafnium.screening.dto.ScreeningRequest;
-import dev.hafnium.screening.dto.ScreeningResponse;
-import dev.hafnium.screening.repository.SanctionsEntityRepository;
+import dev.hafnium.screening.domain.ScreeningRequest;
+import dev.hafnium.screening.domain.ScreeningRequest.EntityType;
+import dev.hafnium.screening.domain.ScreeningRequest.ScreeningStatus;
+import dev.hafnium.screening.dto.ScreeningMatchRequest;
+import dev.hafnium.screening.dto.ScreeningMatchResponse;
+import dev.hafnium.screening.engine.FuzzyMatchingEngine;
+import dev.hafnium.screening.engine.FuzzyMatchingEngine.MatchResult;
+import dev.hafnium.screening.engine.FuzzyMatchingEngine.WatchlistEntry;
 import dev.hafnium.screening.repository.ScreeningMatchRepository;
+import dev.hafnium.screening.repository.ScreeningRequestRepository;
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.text.similarity.LevenshteinDistance;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Screening service for sanctions and PEP matching.
+ * Service for screening operations.
+ *
+ * <p>
+ * Handles screening requests against sanctions and PEP lists using fuzzy
+ * matching.
  */
-@Slf4j
 @Service
-@RequiredArgsConstructor
+@Transactional
 public class ScreeningService {
 
-    private final SanctionsEntityRepository sanctionsRepository;
+    private static final Logger LOG = LoggerFactory.getLogger(ScreeningService.class);
+
+    private final ScreeningRequestRepository requestRepository;
     private final ScreeningMatchRepository matchRepository;
-    private final EventPublisher eventPublisher;
+    private final FuzzyMatchingEngine matchingEngine;
+    private final WatchlistDataSource watchlistDataSource;
+    private final KafkaEventPublisher eventPublisher;
 
-    @Value("${hafnium.screening.fuzzy-threshold:0.85}")
-    private double fuzzyThreshold;
-
-    private final LevenshteinDistance levenshtein = new LevenshteinDistance();
+    public ScreeningService(
+            ScreeningRequestRepository requestRepository,
+            ScreeningMatchRepository matchRepository,
+            FuzzyMatchingEngine matchingEngine,
+            WatchlistDataSource watchlistDataSource,
+            KafkaEventPublisher eventPublisher) {
+        this.requestRepository = requestRepository;
+        this.matchRepository = matchRepository;
+        this.matchingEngine = matchingEngine;
+        this.watchlistDataSource = watchlistDataSource;
+        this.eventPublisher = eventPublisher;
+    }
 
     /**
-     * Screens a name against sanctions and PEP lists.
+     * Performs screening against sanctions and PEP lists.
+     *
+     * @param request The screening request
+     * @return The screening response with matches
      */
-    @Transactional
-    public ScreeningResponse screenName(ScreeningRequest request) {
+    public ScreeningMatchResponse performScreening(ScreeningMatchRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
-        UUID requestId = UUID.randomUUID();
+        String actorId = TenantContext.requireActorId();
 
-        String normalizedQuery = normalizeName(request.name());
+        // Create screening request record
+        ScreeningRequest screeningRequest = new ScreeningRequest(
+                tenantId,
+                request.entityType() != null ? request.entityType() : EntityType.CUSTOMER,
+                request.entityId(),
+                Map.of(
+                        "name", request.name(),
+                        "date_of_birth", request.dateOfBirth() != null ? request.dateOfBirth() : "",
+                        "country", request.country() != null ? request.country() : ""));
 
-        log.info("Screening name: query={}, requestId={}", request.name(), requestId);
+        screeningRequest.setStatus(ScreeningStatus.IN_PROGRESS);
+        screeningRequest = requestRepository.save(screeningRequest);
 
-        // Find potential matches
-        List<SanctionsEntity> candidates = sanctionsRepository.findActiveByTenantId(tenantId);
-        List<ScreeningMatch> matches = new ArrayList<>();
+        LOG.info(
+                "Starting screening request {} for entity {} in tenant {}",
+                screeningRequest.getRequestId(),
+                request.entityId(),
+                tenantId);
 
-        for (SanctionsEntity entity : candidates) {
-            double score = calculateMatchScore(normalizedQuery, entity.getNameNormalized());
+        // Get watchlist entries
+        List<WatchlistEntry> watchlistEntries = watchlistDataSource.getAllEntries();
 
-            if (score >= fuzzyThreshold) {
-                ScreeningMatch match = ScreeningMatch.builder()
-                        .tenantId(tenantId)
-                        .requestId(requestId)
-                        .entity(entity)
-                        .queryName(request.name())
-                        .matchedName(entity.getPrimaryName())
-                        .matchScore(BigDecimal.valueOf(score))
-                        .matchType(determineMatchType(score))
-                        .status(ScreeningMatch.MatchStatus.PENDING_REVIEW)
-                        .build();
+        // Perform matching
+        double threshold = request.threshold() != null ? request.threshold() : 0.85;
+        List<MatchResult> matches = matchingEngine.findMatches(request.name(), watchlistEntries, threshold);
 
-                matches.add(matchRepository.save(match));
-            }
-        }
+        // Save matches
+        List<ScreeningMatch> savedMatches = matches.stream()
+                .map(
+                        m -> new ScreeningMatch(
+                                screeningRequest.getRequestId(),
+                                m.listName(),
+                                BigDecimal.valueOf(m.score()),
+                                m.matchedName(),
+                                Map.of(
+                                        "entry_id", m.entryId(),
+                                        "reason_codes", m.reasonCodes(),
+                                        "metadata", m.metadata() != null ? m.metadata() : Map.of())))
+                .toList();
 
-        log.info("Screening completed: requestId={}, matchCount={}", requestId, matches.size());
+        matchRepository.saveAll(savedMatches);
 
-        // Publish event
-        if (!matches.isEmpty()) {
-            eventPublisher.publish(
-                    Topics.SCREENING_COMPLETED,
-                    "screening.match.completed",
-                    "1.0.0",
-                    requestId.toString(),
-                    new ScreeningCompletedEvent(requestId, request.name(), matches.size()));
-        }
+        // Update screening request
+        screeningRequest.setStatus(ScreeningStatus.COMPLETED);
+        screeningRequest.setMatchCount(matches.size());
+        screeningRequest.setCompletedAt(Instant.now());
+        screeningRequest.setResult(
+                Map.of(
+                        "total_matches", matches.size(),
+                        "high_risk_matches", matches.stream().filter(m -> m.score() >= 0.95).count()));
 
-        return new ScreeningResponse(
-                requestId,
-                request.name(),
+        requestRepository.save(screeningRequest);
+
+        LOG.info(
+                "Completed screening request {} with {} matches",
+                screeningRequest.getRequestId(),
+                matches.size());
+
+        // Emit event
+        eventPublisher.publish(
+                EventType.SCREENING_COMPLETED,
+                tenantId,
+                actorId,
+                TenantContext.getOrCreateTraceId(),
+                Map.of(
+                        "request_id", screeningRequest.getRequestId(),
+                        "entity_id", request.entityId(),
+                        "match_count", matches.size(),
+                        "has_high_risk_matches", matches.stream().anyMatch(m -> m.score() >= 0.95)));
+
+        return new ScreeningMatchResponse(
+                screeningRequest.getRequestId(),
+                screeningRequest.getStatus().name().toLowerCase(),
                 matches.size(),
-                matches.stream().map(this::toMatchDto).toList());
-    }
-
-    private String normalizeName(String name) {
-        return name.toLowerCase()
-                .replaceAll("[^a-z0-9\\s]", "")
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private double calculateMatchScore(String query, String target) {
-        int distance = levenshtein.apply(query, target);
-        int maxLen = Math.max(query.length(), target.length());
-        if (maxLen == 0)
-            return 1.0;
-        return 1.0 - ((double) distance / maxLen);
-    }
-
-    private ScreeningMatch.MatchType determineMatchType(double score) {
-        if (score >= 0.99)
-            return ScreeningMatch.MatchType.EXACT;
-        if (score >= 0.90)
-            return ScreeningMatch.MatchType.FUZZY;
-        return ScreeningMatch.MatchType.PHONETIC;
-    }
-
-    private ScreeningResponse.MatchDto toMatchDto(ScreeningMatch match) {
-        return new ScreeningResponse.MatchDto(
-                match.getId(),
-                match.getMatchedName(),
-                match.getMatchScore().doubleValue(),
-                match.getMatchType().name(),
-                match.getEntity().getListSource(),
-                match.getEntity().getListType().name());
-    }
-
-    private record ScreeningCompletedEvent(UUID requestId, String queryName, int matchCount) {
+                matches.stream()
+                        .map(
+                                m -> new ScreeningMatchResponse.Match(
+                                        m.matchedName(), m.listName(), m.score(), m.reasonCodes()))
+                        .toList(),
+                screeningRequest.getCreatedAt());
     }
 }

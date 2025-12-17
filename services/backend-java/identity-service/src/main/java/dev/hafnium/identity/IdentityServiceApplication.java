@@ -2,14 +2,18 @@ package dev.hafnium.identity;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
- * Identity Service application.
+ * Identity Service Application.
  *
  * <p>
- * Manages customer onboarding, KYC workflows, and document verification.
+ * Provides KYC orchestration, customer management, and document verification
+ * capabilities for
+ * the Hafnium compliance platform.
  */
 @SpringBootApplication
+@ComponentScan(basePackages = { "dev.hafnium.identity", "dev.hafnium.common" })
 public class IdentityServiceApplication {
 
     public static void main(String[] args) {

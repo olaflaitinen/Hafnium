@@ -2,16 +2,18 @@ package dev.hafnium.facade;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
- * API Facade application.
+ * API Facade Application.
  *
  * <p>
- * Provides a stable integration surface for frontend with consistent auth,
- * correlation, and
- * error mapping.
+ * Provides a stable integration surface for frontend applications, aggregating
+ * calls to
+ * backend microservices.
  */
 @SpringBootApplication
+@ComponentScan(basePackages = { "dev.hafnium.facade", "dev.hafnium.common" })
 public class ApiFacadeApplication {
 
     public static void main(String[] args) {

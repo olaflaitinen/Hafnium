@@ -1,248 +1,211 @@
 package dev.hafnium.cases.service;
 
-import dev.hafnium.cases.domain.Case;
-import dev.hafnium.cases.domain.CaseEvent;
-import dev.hafnium.cases.dto.CreateCaseRequest;
-import dev.hafnium.cases.dto.CaseResponse;
-import dev.hafnium.cases.dto.UpdateCaseRequest;
-import dev.hafnium.cases.repository.CaseEventRepository;
-import dev.hafnium.cases.repository.CaseRepository;
-import dev.hafnium.common.kafka.EventPublisher;
-import dev.hafnium.common.kafka.Topics;
+import dev.hafnium.common.kafka.KafkaEventPublisher;
+import dev.hafnium.common.model.event.EventType;
 import dev.hafnium.common.security.TenantContext;
 import dev.hafnium.common.web.ResourceNotFoundException;
+import dev.hafnium.cases.domain.Case;
+import dev.hafnium.cases.domain.Case.CaseStatus;
+import dev.hafnium.cases.dto.CaseResponse;
+import dev.hafnium.cases.dto.CreateCaseRequest;
+import dev.hafnium.cases.dto.UpdateCaseRequest;
+import dev.hafnium.cases.repository.CaseRepository;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Case management service with state machine.
+ * Service for case management operations.
  */
-@Slf4j
 @Service
-@RequiredArgsConstructor
+@Transactional
 public class CaseService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(CaseService.class);
+
     private final CaseRepository caseRepository;
-    private final CaseEventRepository eventRepository;
-    private final EventPublisher eventPublisher;
+    private final AiSummarizationClient aiClient;
+    private final KafkaEventPublisher eventPublisher;
 
-    private final AtomicLong caseCounter = new AtomicLong(System.currentTimeMillis());
-
-    @Value("${hafnium.case.sla-days.low:30}")
-    private int slaLow;
-
-    @Value("${hafnium.case.sla-days.medium:14}")
-    private int slaMedium;
-
-    @Value("${hafnium.case.sla-days.high:7}")
-    private int slaHigh;
-
-    @Value("${hafnium.case.sla-days.critical:3}")
-    private int slaCritical;
+    public CaseService(
+            CaseRepository caseRepository,
+            AiSummarizationClient aiClient,
+            KafkaEventPublisher eventPublisher) {
+        this.caseRepository = caseRepository;
+        this.aiClient = aiClient;
+        this.eventPublisher = eventPublisher;
+    }
 
     /**
-     * Creates a new investigation case.
+     * Creates a new case.
+     *
+     * @param request The case creation request
+     * @return The created case response
      */
-    @Transactional
     public CaseResponse createCase(CreateCaseRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
-        UUID userId = TenantContext.requireUserId();
+        String actorId = TenantContext.requireActorId();
 
-        String caseNumber = generateCaseNumber();
-        Case.Priority priority = Case.Priority.valueOf(request.priority().toUpperCase());
+        Case caseEntity = new Case();
+        caseEntity.setTenantId(tenantId);
+        caseEntity.setTitle(request.title());
+        caseEntity.setDescription(request.description());
+        caseEntity.setCaseType(request.caseType());
+        caseEntity.setPriority(request.priority());
+        caseEntity.setAssignedTo(request.assignedTo());
+        caseEntity.setCustomerId(request.customerId());
+        caseEntity.setAlertIds(request.alertIds());
+        caseEntity.setDueDate(request.dueDate());
+        caseEntity.setMetadata(request.metadata());
 
-        Case investigationCase = Case.builder()
-                .tenantId(tenantId)
-                .caseNumber(caseNumber)
-                .caseType(Case.CaseType.valueOf(request.caseType().toUpperCase()))
-                .status(Case.CaseStatus.OPEN)
-                .priority(priority)
-                .subject(request.subject())
-                .description(request.description())
-                .customerId(request.customerId() != null ? UUID.fromString(request.customerId()) : null)
-                .slaDueAt(calculateSlaDue(priority))
-                .build();
+        caseEntity = caseRepository.save(caseEntity);
 
-        investigationCase = caseRepository.save(investigationCase);
+        LOG.info("Created case {} for tenant {}", caseEntity.getCaseId(), tenantId);
 
-        // Create initial event
-        recordEvent(investigationCase, CaseEvent.EventType.CREATED, null, Case.CaseStatus.OPEN, userId, null);
-
-        log.info("Case created: id={}, caseNumber={}", investigationCase.getId(), caseNumber);
-
-        // Publish event
+        // Emit event
         eventPublisher.publish(
-                Topics.CASE_CREATED,
-                "case.created",
-                "1.0.0",
-                investigationCase.getId().toString(),
-                investigationCase);
+                EventType.CASE_CREATED,
+                tenantId,
+                actorId,
+                TenantContext.getOrCreateTraceId(),
+                Map.of(
+                        "case_id", caseEntity.getCaseId(),
+                        "case_type", caseEntity.getCaseType().name(),
+                        "priority", caseEntity.getPriority().name(),
+                        "customer_id", caseEntity.getCustomerId() != null ? caseEntity.getCustomerId() : ""));
 
-        return toResponse(investigationCase);
+        return toResponse(caseEntity);
     }
 
     /**
      * Gets a case by ID.
+     *
+     * @param caseId The case identifier
+     * @return The case response
      */
     @Transactional(readOnly = true)
     public CaseResponse getCase(UUID caseId) {
         UUID tenantId = TenantContext.requireTenantId();
 
-        Case investigationCase = caseRepository.findByIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Case", caseId));
+        Case caseEntity = caseRepository
+                .findByTenantIdAndCaseId(tenantId, caseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case", caseId.toString()));
 
-        return toResponse(investigationCase);
+        return toResponse(caseEntity);
     }
 
     /**
-     * Lists cases with pagination.
+     * Lists cases with optional filtering.
+     *
+     * @param status   Optional status filter
+     * @param pageable Pagination parameters
+     * @return Page of case responses
      */
     @Transactional(readOnly = true)
-    public Page<CaseResponse> listCases(String status, Pageable pageable) {
+    public Page<CaseResponse> listCases(CaseStatus status, Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
 
-        Page<Case> cases;
-        if (status != null && !status.isBlank()) {
-            Case.CaseStatus caseStatus = Case.CaseStatus.valueOf(status.toUpperCase());
-            cases = caseRepository.findByTenantIdAndStatus(tenantId, caseStatus, pageable);
-        } else {
-            cases = caseRepository.findByTenantId(tenantId, pageable);
-        }
-
-        return cases.map(this::toResponse);
+        return caseRepository
+                .findByTenantIdWithFilters(tenantId, status, pageable)
+                .map(this::toResponse);
     }
 
     /**
-     * Updates a case status.
+     * Updates a case.
+     *
+     * @param caseId  The case identifier
+     * @param request The update request
+     * @return The updated case response
      */
-    @Transactional
     public CaseResponse updateCase(UUID caseId, UpdateCaseRequest request) {
         UUID tenantId = TenantContext.requireTenantId();
-        UUID userId = TenantContext.requireUserId();
+        String actorId = TenantContext.requireActorId();
 
-        Case investigationCase = caseRepository.findByIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new ResourceNotFoundException("Case", caseId));
-
-        Case.CaseStatus oldStatus = investigationCase.getStatus();
+        Case caseEntity = caseRepository
+                .findByTenantIdAndCaseId(tenantId, caseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case", caseId.toString()));
 
         if (request.status() != null) {
-            Case.CaseStatus newStatus = Case.CaseStatus.valueOf(request.status().toUpperCase());
-            validateTransition(oldStatus, newStatus);
-            investigationCase.setStatus(newStatus);
-
-            if (newStatus.name().startsWith("CLOSED_")) {
-                investigationCase.setClosedAt(Instant.now());
+            caseEntity.setStatus(request.status());
+            if (request.status().name().startsWith("CLOSED")) {
+                caseEntity.setClosedAt(Instant.now());
             }
-
-            recordEvent(investigationCase, CaseEvent.EventType.STATUS_CHANGED, oldStatus, newStatus, userId,
-                    request.notes());
         }
-
-        if (request.assignedTo() != null) {
-            investigationCase.setAssignedTo(UUID.fromString(request.assignedTo()));
-            if (investigationCase.getStatus() == Case.CaseStatus.OPEN) {
-                investigationCase.setStatus(Case.CaseStatus.ASSIGNED);
-            }
-            recordEvent(investigationCase, CaseEvent.EventType.ASSIGNED, oldStatus, investigationCase.getStatus(),
-                    userId, null);
-        }
-
         if (request.priority() != null) {
-            investigationCase.setPriority(Case.Priority.valueOf(request.priority().toUpperCase()));
-            investigationCase.setSlaDueAt(calculateSlaDue(investigationCase.getPriority()));
-            recordEvent(investigationCase, CaseEvent.EventType.PRIORITY_CHANGED, null, null, userId, null);
+            caseEntity.setPriority(request.priority());
+        }
+        if (request.assignedTo() != null) {
+            caseEntity.setAssignedTo(request.assignedTo());
+        }
+        if (request.resolution() != null) {
+            caseEntity.setResolution(request.resolution());
         }
 
-        investigationCase = caseRepository.save(investigationCase);
+        caseEntity.touch();
+        caseEntity = caseRepository.save(caseEntity);
 
-        // Publish event
+        LOG.info("Updated case {} for tenant {}", caseId, tenantId);
+
+        // Emit event
         eventPublisher.publish(
-                Topics.CASE_UPDATED,
-                "case.updated",
-                "1.0.0",
-                investigationCase.getId().toString(),
-                investigationCase);
+                EventType.CASE_UPDATED,
+                tenantId,
+                actorId,
+                TenantContext.getOrCreateTraceId(),
+                Map.of(
+                        "case_id", caseEntity.getCaseId(),
+                        "status", caseEntity.getStatus().name(),
+                        "priority", caseEntity.getPriority().name()));
 
-        return toResponse(investigationCase);
+        return toResponse(caseEntity);
     }
 
-    private String generateCaseNumber() {
-        return String.format("CASE-%d", caseCounter.incrementAndGet());
+    /**
+     * Generates an AI summary for a case.
+     *
+     * @param caseId The case identifier
+     * @return The updated case with AI summary
+     */
+    public CaseResponse generateAiSummary(UUID caseId) {
+        UUID tenantId = TenantContext.requireTenantId();
+
+        Case caseEntity = caseRepository
+                .findByTenantIdAndCaseId(tenantId, caseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Case", caseId.toString()));
+
+        String summary = aiClient.summarizeCase(caseEntity);
+        caseEntity.setAiSummary(summary);
+        caseEntity.touch();
+
+        caseEntity = caseRepository.save(caseEntity);
+
+        LOG.info("Generated AI summary for case {}", caseId);
+
+        return toResponse(caseEntity);
     }
 
-    private Instant calculateSlaDue(Case.Priority priority) {
-        int days = switch (priority) {
-            case LOW -> slaLow;
-            case MEDIUM -> slaMedium;
-            case HIGH -> slaHigh;
-            case CRITICAL -> slaCritical;
-        };
-        return Instant.now().plus(days, ChronoUnit.DAYS);
-    }
-
-    private void validateTransition(Case.CaseStatus from, Case.CaseStatus to) {
-        // Valid transitions
-        Map<Case.CaseStatus, java.util.List<Case.CaseStatus>> validTransitions = Map.of(
-                Case.CaseStatus.OPEN,
-                java.util.List.of(Case.CaseStatus.ASSIGNED, Case.CaseStatus.IN_PROGRESS,
-                        Case.CaseStatus.CLOSED_NO_ACTION),
-                Case.CaseStatus.ASSIGNED, java.util.List.of(Case.CaseStatus.IN_PROGRESS, Case.CaseStatus.OPEN),
-                Case.CaseStatus.IN_PROGRESS,
-                java.util.List.of(Case.CaseStatus.PENDING_REVIEW, Case.CaseStatus.ESCALATED,
-                        Case.CaseStatus.CLOSED_CONFIRMED, Case.CaseStatus.CLOSED_FALSE_POSITIVE),
-                Case.CaseStatus.PENDING_REVIEW,
-                java.util.List.of(Case.CaseStatus.IN_PROGRESS, Case.CaseStatus.CLOSED_CONFIRMED,
-                        Case.CaseStatus.CLOSED_FALSE_POSITIVE),
-                Case.CaseStatus.ESCALATED,
-                java.util.List.of(Case.CaseStatus.IN_PROGRESS, Case.CaseStatus.CLOSED_CONFIRMED));
-
-        java.util.List<Case.CaseStatus> allowed = validTransitions.get(from);
-        if (allowed == null || !allowed.contains(to)) {
-            throw new IllegalArgumentException(
-                    String.format("Invalid status transition from %s to %s", from, to));
-        }
-    }
-
-    private void recordEvent(Case investigationCase, CaseEvent.EventType eventType,
-            Case.CaseStatus from, Case.CaseStatus to, UUID actorId, String notes) {
-
-        CaseEvent event = CaseEvent.builder()
-                .tenantId(investigationCase.getTenantId())
-                .investigationCase(investigationCase)
-                .eventType(eventType)
-                .fromState(from)
-                .toState(to)
-                .actorId(actorId)
-                .notes(notes)
-                .build();
-
-        eventRepository.save(event);
-    }
-
-    private CaseResponse toResponse(Case c) {
+    private CaseResponse toResponse(Case caseEntity) {
         return new CaseResponse(
-                c.getId(),
-                c.getCaseNumber(),
-                c.getCaseType().name(),
-                c.getStatus().name(),
-                c.getPriority().name(),
-                c.getSubject(),
-                c.getDescription(),
-                c.getCustomerId(),
-                c.getAssignedTo(),
-                c.getSlaDueAt(),
-                c.getCreatedAt(),
-                c.getUpdatedAt(),
-                c.getClosedAt());
+                caseEntity.getCaseId(),
+                caseEntity.getTitle(),
+                caseEntity.getDescription(),
+                caseEntity.getCaseType().name().toLowerCase(),
+                caseEntity.getPriority().name().toLowerCase(),
+                caseEntity.getStatus().name().toLowerCase(),
+                caseEntity.getAssignedTo(),
+                caseEntity.getCustomerId(),
+                caseEntity.getAlertIds(),
+                caseEntity.getAiSummary(),
+                caseEntity.getResolution(),
+                caseEntity.getCreatedAt(),
+                caseEntity.getUpdatedAt(),
+                caseEntity.getClosedAt(),
+                caseEntity.getDueDate());
     }
 }
